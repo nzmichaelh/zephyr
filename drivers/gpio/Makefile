@@ -17,5 +17,6 @@ obj-$(CONFIG_GPIO_FE310) += gpio_fe310.o
 obj-$(CONFIG_GPIO_CC2650) += gpio_cc2650.o
 obj-$(CONFIG_GPIO_ESP32) += gpio_esp32.o
 obj-$(CONFIG_GPIO_GECKO) += gpio_gecko.o
+obj-$(CONFIG_GPIO_SAMD) += gpio_samd.o
 
 obj-$(CONFIG_USERSPACE) += gpio_handlers.o

@@ -54,6 +54,12 @@
 			reg = <0x41004400 0x80>;
                         label = "PORTA";
                 };
+
+		port1: gpio@41004480 {
+			compatible = "atmel,samd-gpio";
+			reg = <0x41004480 0x80>;
+			label = "PORTB";
+		};
         };
 };
 
