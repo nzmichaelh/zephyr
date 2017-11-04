@@ -5,4 +5,6 @@
 #
 
 obj-y += $(SOC_SERIES)/
-obj-$(CONFIG_ASF) += common/
+obj-$(CONFIG_SOC_SERIES_SAM3X) += common/
+obj-$(CONFIG_SOC_SERIES_SAM4S) += common/
+obj-$(CONFIG_SOC_SERIES_SAME70) += common/

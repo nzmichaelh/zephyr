@@ -6,8 +6,8 @@
 #
 
 menuconfig WDT_SAM
-	bool "Atmel SAM MCU Family Watchdog (WDT) Driver"
-	depends on SOC_FAMILY_SAM
+	bool "Atmel SAM3/4/E7 MCU Family Watchdog (WDT) Driver"
+	depends on CONFIG_SOC_SERIES_SAM3X || CONFIG_SOC_SERIES_SAM4S || CONFIG_SOC_SERIES_SAME70
 	default y
 	help
 	  Enable WDT driver for Atmel SAM MCUs.
