@@ -6,7 +6,7 @@
 
 menuconfig USART_SAM
 	bool "Atmel SAM MCU family USART driver"
-	depends on SOC_FAMILY_SAM
+	depends on SOC_FAMILY_SAM && !SOC_SERIES_SAMD
 	select SERIAL_HAS_DRIVER
 	default n
 	help
