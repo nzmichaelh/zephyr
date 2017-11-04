@@ -1,0 +1,12 @@
+# Kconfig - Atmel SAM3X MCU series
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+choice
+	prompt "Atmel SAMD MCU Selection"
+	depends on SOC_SERIES_SAMD
+
+	config SOC_PART_NUMBER_SAMD21G18A
+		bool "SAMD21G18A"
+endchoice

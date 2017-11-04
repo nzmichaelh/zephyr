@@ -5,4 +5,6 @@
 #
 
 add_subdirectory(${SOC_SERIES})
-add_subdirectory_ifdef(CONFIG_ASF common)
+add_subdirectory_ifdef(CONFIG_SOC_SERIES_SAM3X common)
+add_subdirectory_ifdef(CONFIG_SOC_SERIES_SAM4S common)
+add_subdirectory_ifdef(CONFIG_SOC_SERIES_SAME70 common)
