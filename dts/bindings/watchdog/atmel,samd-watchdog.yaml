@@ -1,5 +1,6 @@
 ---
 title: SAMD watchdog
+id: atmel,samd-watchdog
 version: 0.1
 
 description: >
@@ -10,7 +11,7 @@ properties:
       type: string
       category: required
       description: compatible strings
-      constraint: "atmel,samd-wdt"
+      constraint: "atmel,samd-watchdog"
 
   - reg:
       type: int
