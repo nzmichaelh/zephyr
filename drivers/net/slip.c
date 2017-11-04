@@ -211,6 +211,7 @@ static int slip_send(struct net_if *iface, struct net_pkt *pkt)
 #if SYS_LOG_LEVEL >= SYS_LOG_LEVEL_DEBUG
 		SYS_LOG_DBG("sent data %d bytes",
 			    frag->len + net_pkt_ll_reserve(pkt));
+                #if 0
 		if (frag->len + ll_reserve) {
 			char msg[8 + 1];
 
@@ -220,6 +221,7 @@ static int slip_send(struct net_if *iface, struct net_pkt *pkt)
 				frag->len + net_pkt_ll_reserve(pkt),
 				net_pkt_ll_reserve(pkt));
 		}
+                #endif
 #endif
 	}
 
