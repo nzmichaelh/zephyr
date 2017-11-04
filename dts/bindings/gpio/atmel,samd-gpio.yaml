@@ -1,0 +1,25 @@
+---
+title: SAMD GPIO
+version: 0.1
+
+description: >
+    This is a representation of the SAMD GPIO PORT nodes
+
+properties:
+  - compatible:
+      type: string
+      category: required
+      description: compatible strings
+      constraint: "atmel,samd-gpio"
+
+  - reg:
+      type: int
+      description: mmio register space
+      generation: define
+      category: required
+
+  - label:
+      type: string
+      category: required
+      description: Human readable string describing the device (used by Zephyr for API name)
+      generation: define

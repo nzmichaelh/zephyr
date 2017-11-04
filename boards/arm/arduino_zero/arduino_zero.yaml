@@ -1,0 +1,7 @@
+identifier: arduino_zero
+name: Arduino Zero
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gccarmemb
