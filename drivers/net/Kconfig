@@ -124,3 +124,49 @@ config  SYS_LOG_NET_LOOPBACK_LEVEL
           4 DEBUG, write SYS_LOG_DBG in addition to previous levels
 
 endif
+
+#
+# AHDLC options
+#
+menuconfig AHDLC
+	bool
+	prompt "AHDLC driver"
+	select UART_PIPE
+	select UART_INTERRUPT_DRIVEN
+        help
+          This option enables the async HDLC driver.
+
+if AHDLC
+
+config	AHDLC_DRV_NAME
+	string "AHDLC Driver name"
+	default "ahdlc"
+	help
+	  This option sets the driver name
+
+config	AHDLC_MTU
+	int "AHDLC MTU"
+	default 1500
+	range 80 1500
+	help
+	  This option sets the MTU for the AHDLC connection.
+	  The value is only used when fragmenting the network
+	  data into net_buf's. The actual AHDLC connection
+	  does not use this value.
+
+config	SYS_LOG_AHDLC_LEVEL
+	int
+	prompt "AHDLC driver log level"
+	depends on SYS_LOG && AHDLC
+	default 0
+	range 0 4
+	help
+	  Sets log level for AHDLC driver.
+
+config	AHDLC_STATISTICS
+	bool "AHDLC network connection statistics"
+	default n
+	help
+	  This option enables statistics support for AHDLC driver.
+
+endif
