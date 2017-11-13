@@ -73,7 +73,7 @@ typedef union {
     uint8_t  DONE:1;           /*!< bit:      0  Done                               */
     uint8_t  CRSTEXT:1;        /*!< bit:      1  CPU Reset Phase Extension          */
     uint8_t  BERR:1;           /*!< bit:      2  Bus Error                          */
-    uint8_t  FAIL:1;           /*!< bit:      3  Failure                            */
+    uint8_t  FAIL_:1;          /*!< bit:      3  Failure                            */
     uint8_t  PERR:1;           /*!< bit:      4  Protection Error                   */
     uint8_t  :3;               /*!< bit:  5.. 7  Reserved                           */
   } bit;                       /*!< Structure used for bit  access                  */
