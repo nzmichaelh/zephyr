@@ -1,0 +1,18 @@
+# Kconfig - Atmel SAMD WDT configuration
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+menuconfig WDT_SAMD
+	bool "Atmel SAMD series Watchdog (WDT) Driver"
+	depends on SOC_SERIES_SAMD
+	default y
+	help
+	  Enable WDT driver for Atmel SAMD MCUs.
+
+config WDT_SAMD_DISABLE_AT_BOOT
+	bool "Disable WDT during boot"
+	depends on WDT_SAMD
+	default y
+	help
+	  Select this option to disable the WDT during boot.
