@@ -1,0 +1,13 @@
+# Kconfig - Atmel SAM SERCOM configuration options
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+menuconfig UART_SAMD
+	bool "Atmel SAMD series SERCOM USART driver"
+	depends on SOC_SERIES_SAMD
+	select SERIAL_HAS_DRIVER
+	select SERIAL_SUPPORT_INTERRUPT
+	default n
+	help
+	  This option enables the SERCOMx USART driver for Atmel SAMD MCUs.
