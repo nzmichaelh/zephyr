@@ -1,0 +1,13 @@
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+menuconfig GPIO_SAMD
+	bool "Atmel SAMD GPIO (PORT) driver"
+	depends on GPIO && SOC_SERIES_SAMD
+	default n
+	help
+	  Enable config options to support the PORT controllers
+	  on Atmel SAMD series processors.
+
+	  Says n if not sure.
