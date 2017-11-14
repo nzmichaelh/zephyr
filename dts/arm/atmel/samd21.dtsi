@@ -1,0 +1,70 @@
+/*
+ * Copyright (c) 2017 Justin Watson
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <arm/armv6-m.dtsi>
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-m0";
+			reg = <0>;
+		};
+	};
+
+	flash0: flash@0 {
+		reg = <0 0x40000>;
+	};
+
+	sram0: memory@20000000 {
+		device_type = "memory";
+		compatible = "mmio-sram";
+		reg = <0x20000000 0x8000>;
+	};
+
+	soc {
+		wdog: watchdog@40001000 {
+			compatible = "atmel,samd-watchdog";
+			reg = <0x40001000 9>;
+			label = "WDT";
+		};
+
+		sercom0: uart@42000800 {
+			compatible = "atmel,samd-usart";
+			reg = <0x42000800 0x40>;
+			interrupts = <9 0>;
+			status = "disabled";
+			label = "SERCOM0";
+		};
+
+		sercom5: uart@42001C00 {
+			compatible = "atmel,samd-usart";
+			reg = <0x42001C00 0x40>;
+			interrupts = <14 0>;
+			status = "disabled";
+			label = "SERCOM5";
+		};
+
+		port0: gpio@41004400 {
+			compatible = "atmel,samd-gpio";
+			reg = <0x41004400 0x80>;
+			label = "PORTA";
+		};
+
+		port1: gpio@41004480 {
+			compatible = "atmel,samd-gpio";
+			reg = <0x41004480 0x80>;
+			label = "PORTB";
+		};
+	};
+};
+
+&nvic {
+	arm,num-irq-priority-bits = <2>;
+};
