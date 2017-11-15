@@ -1,0 +1,10 @@
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+menuconfig DMA_SAMD
+	bool "Atmel SAMD series DMAC driver"
+	default n
+	depends on SOC_SERIES_SAMD
+	help
+	DMA driver for Atmel SAMD series MCUs.
