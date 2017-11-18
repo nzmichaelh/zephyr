@@ -3,6 +3,7 @@
  */
 
 #define SYS_LOG_LEVEL CONFIG_SYS_LOG_DMA_LEVEL
+#define SYS_LOG_DOMAIN "dma"
 
 #include <board.h>
 #include <device.h>
@@ -18,7 +19,8 @@
 typedef void (*dma_callback)(struct device *dev, u32_t channel, int error_code);
 
 struct dma_samd_device {
-	DmacDescriptor descriptors[DMA_SAMD_NUM_CHANNELS];
+	__aligned(16) DmacDescriptor descriptors[DMA_SAMD_NUM_CHANNELS];
+	__aligned(16) DmacDescriptor descriptors_wb[DMA_SAMD_NUM_CHANNELS];
 	dma_callback callbacks[DMA_SAMD_NUM_CHANNELS];
 };
 
@@ -44,7 +46,6 @@ static void dma_samd_isr(void *arg)
 	struct device *dev = arg;
 	struct dma_samd_device *data = dev->driver_data;
 	int channel;
-
 	u32_t intstatus = DMAC->INTSTATUS.reg;
 
 	for (channel = 0; intstatus != 0; channel++, intstatus >>= 1) {
@@ -58,23 +59,43 @@ int dma_samd_config(struct device *dev, u32_t channel,
 		    struct dma_config *config)
 {
 	struct dma_samd_device *data = dev->driver_data;
-
 	DmacDescriptor *desc = &data->descriptors[channel];
 	struct dma_block_config *block = config->head_block;
-	DMAC_BTCTRL_Type btctrl = { .reg = 0 };
+	DMAC_BTCTRL_Type btctrl = {.reg = 0};
 	int key;
 
-	desc->SRCADDR.reg = block->source_address;
-	desc->DSTADDR.reg = block->dest_address;
+	SYS_LOG_DBG("%p:%u", dev, channel);
+
+	key = irq_lock();
+	DMAC->CHID.reg = channel;
+
+	if (DMAC->CHCTRLB.bit.TRIGSRC != config->dma_slot) {
+		DMAC->CHCTRLA.reg = 0;
+		DMAC->CHCTRLA.reg = DMAC_CHCTRLA_SWRST;
+		while (DMAC->CHCTRLA.bit.SWRST) {
+		}
+		DMAC->CHCTRLB.reg = DMAC_CHCTRLB_TRIGACT_BEAT |
+				    DMAC_CHCTRLB_TRIGSRC(config->dma_slot);
+	}
+
+	irq_unlock(key);
+
 	desc->BTCNT.reg = block->block_size;
 	desc->DESCADDR.reg = 0;
 
-	if (block->source_addr_adj == 1) {
+	if (block->source_addr_adj == DMA_ADDR_ADJ_INCREMENT) {
+		desc->SRCADDR.reg = block->source_address + block->block_size;
 		btctrl.bit.SRCINC = 1;
+	} else {
+		desc->SRCADDR.reg = block->source_address;
 	}
-	if (block->dest_addr_adj == 1) {
+	if (block->dest_addr_adj == DMA_ADDR_ADJ_INCREMENT) {
+		desc->DSTADDR.reg = block->dest_address + block->block_size;
 		btctrl.bit.DSTINC = 1;
+	} else {
+		desc->DSTADDR.reg = block->dest_address;
 	}
+
 	btctrl.bit.VALID = 1;
 	desc->BTCTRL = btctrl;
 
@@ -82,21 +103,16 @@ int dma_samd_config(struct device *dev, u32_t channel,
 	/* Callback is always invoked */
 	DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL;
 
-	key = irq_lock();
-
-	DMAC->CHID.reg = channel;
-	DMAC->CHCTRLA.reg = DMAC_CHCTRLA_SWRST;
-	DMAC->CHCTRLB.reg =
-	    DMAC_CHCTRLB_TRIGACT_BEAT | DMAC_CHCTRLB_TRIGSRC(config->dma_slot);
-	irq_unlock(key);
-
 	return 0;
 }
 
 int dma_samd_start(struct device *dev, u32_t channel)
 {
-	int key = irq_lock();
+	int key;
 
+	SYS_LOG_DBG("%p:%u", dev, channel);
+
+	key = irq_lock();
 	DMAC->CHID.reg = channel;
 	DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
 
@@ -109,6 +125,7 @@ int dma_samd_stop(struct device *dev, u32_t channel)
 {
 	int key = irq_lock();
 
+	SYS_LOG_DBG("%p:%u", dev, channel);
 	DMAC->CHID.reg = channel;
 	DMAC->CHCTRLA.reg = 0;
 
@@ -121,6 +138,8 @@ static int dma_samd_init(struct device *dev)
 {
 	struct dma_samd_device *data = dev->driver_data;
 
+	SYS_LOG_DBG("%p", dev);
+
 	/* Enable clocks. */
 	PM->AHBMASK.reg |= PM_AHBMASK_DMAC;
 	PM->APBBMASK.reg |= PM_APBBMASK_DMAC;
@@ -130,7 +149,7 @@ static int dma_samd_init(struct device *dev)
 	DMAC->CTRL.bit.SWRST = 1;
 
 	DMAC->BASEADDR.reg = (uintptr_t)&data->descriptors;
-	DMAC->WRBADDR.reg = (uintptr_t)&data->descriptors;
+	DMAC->WRBADDR.reg = (uintptr_t)&data->descriptors_wb;
 
 	DMAC->CTRL.reg = DMAC_CTRL_DMAENABLE | DMAC_CTRL_LVLEN(0x0F);
 
