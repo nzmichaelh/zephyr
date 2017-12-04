@@ -210,7 +210,7 @@ struct net_if {
 	 * in the communication chip that is accessed via this
 	 * network interface.
 	 */
-	struct net_offload *offload;
+	const struct net_offload *offload;
 #endif /* CONFIG_NET_OFFLOAD */
 
 #if defined(CONFIG_NET_IPV6)
