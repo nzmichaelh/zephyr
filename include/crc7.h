@@ -8,8 +8,8 @@
  * @brief CRC-7 computation function
  */
 
-#ifndef __CRC16_H
-#define __CRC16_H
+#ifndef __CRC7_H
+#define __CRC7_H
 
 #include <zephyr/types.h>
 #include <stdbool.h>
