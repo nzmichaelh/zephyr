@@ -503,6 +503,14 @@ void net_buf_simple_add_be16(struct net_buf_simple *buf, u16_t val)
 	memcpy(net_buf_simple_add(buf, sizeof(val)), &val, sizeof(val));
 }
 
+void net_buf_simple_add_be24(struct net_buf_simple *buf, u32_t val)
+{
+	NET_BUF_SIMPLE_DBG("buf %p val %u", buf, val);
+
+	net_buf_simple_add_u8(buf, (u8_t)(val >> 16));
+	net_buf_simple_add_be16(buf, (u16_t)val);
+}
+
 void net_buf_simple_add_le32(struct net_buf_simple *buf, u32_t val)
 {
 	NET_BUF_SIMPLE_DBG("buf %p val %u", buf, val);

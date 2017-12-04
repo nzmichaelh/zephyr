@@ -9,6 +9,8 @@ zephyr_library_sources(
   net_if.c
   net_pkt.c
   utils.c
+  l2/espif/espif.c
+  l2/espif/espif_l2.c
   )
 
 zephyr_library_sources_ifdef(CONFIG_NET_6LO         6lo.c)
