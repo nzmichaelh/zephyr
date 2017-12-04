@@ -75,6 +75,30 @@ static inline u16_t crc16_ansi(const u8_t *src, size_t len)
 }
 
 /**
+ * @brief Compute the CRC-16/CCITT checksum of a buffer.
+ *
+ * See ITU-T Recommendation V.41 (November 1988).  Uses 0x1021 as the
+ * polynomial, reflects the input, and reflects the output.
+ *
+ * To calculate the CRC across non-contigious blocks use the return
+ * value from block N-1 as the seed for block N.
+ *
+ * For CRC-16/CCITT, use 0 as the initial seed.  Other checksums in
+ * the same family can be calculated by changing the seed and/or
+ * XORing the final value.  Examples include:
+ *
+ * - CCIITT-FALSE: seed=0xffff
+ * - X-25 (used in PPP): seed=0xffff, xor=0xffff, residual=0xf0b8
+ *
+ * @param seed Value to seed the CRC with
+ * @param src Input bytes for the computation
+ * @param len Length of the input in bytes
+ *
+ * @return The computed CRC16 value
+ */
+u16_t crc_ccitt(u16_t seed, const u8_t *src, size_t len);
+
+/**
  * @}
  */
 #endif
