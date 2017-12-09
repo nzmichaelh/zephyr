@@ -113,6 +113,9 @@ static struct bt_mesh_proxy_client *find_client(struct bt_conn *conn)
 }
 
 #if defined(CONFIG_BT_MESH_GATT_PROXY)
+/* Next subnet in queue to be advertised */
+static int next_idx;
+
 static int proxy_segment_and_send(struct bt_conn *conn, u8_t type,
 				  struct net_buf_simple *msg);
 
@@ -337,10 +340,24 @@ void bt_mesh_proxy_beacon_send(struct bt_mesh_subnet *sub)
 	}
 }
 
+void bt_mesh_proxy_identity_start(struct bt_mesh_subnet *sub)
+{
+	sub->node_id = BT_MESH_NODE_IDENTITY_RUNNING;
+	sub->node_id_start = k_uptime_get_32();
+
+	/* Prioritize the recently enabled subnet */
+	next_idx = sub - bt_mesh.sub;
+}
+
+void bt_mesh_proxy_identity_stop(struct bt_mesh_subnet *sub)
+{
+	sub->node_id = BT_MESH_NODE_IDENTITY_STOPPED;
+	sub->node_id_start = 0;
+}
+
 int bt_mesh_proxy_identity_enable(void)
 {
-	/* FIXME: Add support for multiple subnets */
-	struct bt_mesh_subnet *sub = &bt_mesh.sub[0];
+	int i, count = 0;
 
 	BT_DBG("");
 
@@ -348,21 +365,24 @@ int bt_mesh_proxy_identity_enable(void)
 		return -EAGAIN;
 	}
 
-	if (sub->net_idx == BT_MESH_KEY_UNUSED) {
-		return -ENOENT;
+	for (i = 0; i < ARRAY_SIZE(bt_mesh.sub); i++) {
+		struct bt_mesh_subnet *sub = &bt_mesh.sub[i];
+
+		if (sub->net_idx == BT_MESH_KEY_UNUSED) {
+			continue;
+		}
+
+		if (sub->node_id == BT_MESH_NODE_IDENTITY_NOT_SUPPORTED) {
+			continue;
+		}
+
+		bt_mesh_proxy_identity_start(sub);
+		count++;
 	}
 
-	if (sub->node_id == BT_MESH_NODE_IDENTITY_NOT_SUPPORTED) {
-		return -ENOTSUP;
+	if (count) {
+		bt_mesh_adv_update();
 	}
-
-	if (sub->node_id == BT_MESH_NODE_IDENTITY_RUNNING) {
-		return 0;
-	}
-
-	sub->node_id = BT_MESH_NODE_IDENTITY_RUNNING;
-	sub->node_id_start = k_uptime_get_32();
-	bt_mesh_adv_update();
 
 	return 0;
 }
@@ -483,6 +503,8 @@ static ssize_t proxy_recv(struct bt_conn *conn,
 	return len;
 }
 
+static int conn_count;
+
 static void proxy_connected(struct bt_conn *conn, u8_t err)
 {
 	struct bt_mesh_proxy_client *client;
@@ -490,13 +512,15 @@ static void proxy_connected(struct bt_conn *conn, u8_t err)
 
 	BT_DBG("conn %p err 0x%02x", conn, err);
 
+	conn_count++;
+
 	/* Since we use ADV_OPT_ONE_TIME */
 	proxy_adv_enabled = false;
 
-#if CONFIG_BT_MAX_CONN > 1
 	/* Try to re-enable advertising in case it's possible */
-	bt_mesh_adv_update();
-#endif
+	if (conn_count < CONFIG_BT_MAX_CONN) {
+		bt_mesh_adv_update();
+	}
 
 	for (client = NULL, i = 0; i < ARRAY_SIZE(clients); i++) {
 		if (!clients[i].conn) {
@@ -521,6 +545,8 @@ static void proxy_disconnected(struct bt_conn *conn, u8_t reason)
 	int i;
 
 	BT_DBG("conn %p reason 0x%02x", conn, reason);
+
+	conn_count--;
 
 	for (i = 0; i < ARRAY_SIZE(clients); i++) {
 		struct bt_mesh_proxy_client *client = &clients[i];
@@ -655,8 +681,6 @@ int bt_mesh_proxy_prov_disable(void)
 }
 
 #endif /* CONFIG_BT_MESH_PB_GATT */
-
-
 
 #if defined(CONFIG_BT_MESH_GATT_PROXY)
 static ssize_t proxy_ccc_write(struct bt_conn *conn,
@@ -1020,16 +1044,62 @@ static int net_id_adv(struct bt_mesh_subnet *sub)
 	return 0;
 }
 
-static s32_t gatt_proxy_advertise(void)
+static bool advertise_subnet(struct bt_mesh_subnet *sub)
 {
-	/* TODO: Add support for multiple subnets */
-	struct bt_mesh_subnet *sub = &bt_mesh.sub[0];
+	if (sub->net_idx == BT_MESH_KEY_UNUSED) {
+		return false;
+	}
+
+	return (sub->node_id == BT_MESH_NODE_IDENTITY_RUNNING ||
+		bt_mesh_gatt_proxy_get() == BT_MESH_GATT_PROXY_ENABLED);
+}
+
+static struct bt_mesh_subnet *next_sub(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(bt_mesh.sub); i++) {
+		struct bt_mesh_subnet *sub;
+
+		sub = &bt_mesh.sub[(i + next_idx) % ARRAY_SIZE(bt_mesh.sub)];
+		if (advertise_subnet(sub)) {
+			next_idx = (next_idx + 1) % ARRAY_SIZE(bt_mesh.sub);
+			return sub;
+		}
+	}
+
+	return NULL;
+}
+
+static int sub_count(void)
+{
+	int i, count = 0;
+
+	for (i = 0; i < ARRAY_SIZE(bt_mesh.sub); i++) {
+		struct bt_mesh_subnet *sub = &bt_mesh.sub[i];
+
+		if (advertise_subnet(sub)) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+static s32_t gatt_proxy_advertise(struct bt_mesh_subnet *sub)
+{
 	s32_t remaining = K_FOREVER;
+	int subnet_count;
 
 	BT_DBG("");
 
-	if (sub->net_idx == BT_MESH_KEY_UNUSED) {
-		BT_WARN("First subnet is not valid");
+	if (conn_count == CONFIG_BT_MAX_CONN) {
+		BT_WARN("Connectable advertising deferred (max connections)");
+		return remaining;
+	}
+
+	if (!sub) {
+		BT_WARN("No subnets to advertise on");
 		return remaining;
 	}
 
@@ -1042,16 +1112,38 @@ static s32_t gatt_proxy_advertise(void)
 			       active, remaining);
 			node_id_adv(sub);
 		} else {
-			sub->node_id = BT_MESH_NODE_IDENTITY_STOPPED;
-			sub->node_id_start = 0;
+			bt_mesh_proxy_identity_stop(sub);
 			BT_DBG("Node ID stopped");
 		}
 	}
 
-	if (sub->node_id == BT_MESH_NODE_IDENTITY_STOPPED &&
-	    bt_mesh_gatt_proxy_get() == BT_MESH_GATT_PROXY_ENABLED) {
-		net_id_adv(sub);
+	if (sub->node_id == BT_MESH_NODE_IDENTITY_STOPPED) {
+		if (bt_mesh_gatt_proxy_get() == BT_MESH_GATT_PROXY_ENABLED) {
+			net_id_adv(sub);
+		} else {
+			return gatt_proxy_advertise(next_sub());
+		}
 	}
+
+	subnet_count = sub_count();
+	BT_DBG("sub_count %u", subnet_count);
+	if (subnet_count > 1) {
+		s32_t max_timeout;
+
+		/* We use NODE_ID_TIMEOUT as a starting point since it may
+		 * be less than 60 seconds. Divide this period into at least
+		 * 6 slices, but make sure that a slice is at least one
+		 * second long (to avoid excessive rotation).
+		 */
+		max_timeout = NODE_ID_TIMEOUT / max(subnet_count, 6);
+		max_timeout = max(max_timeout, K_SECONDS(1));
+
+		if (remaining > max_timeout || remaining < 0) {
+			remaining = max_timeout;
+		}
+	}
+
+	BT_DBG("Advertising %d ms for net_idx 0x%04x", remaining, sub->net_idx);
 
 	return remaining;
 }
@@ -1090,7 +1182,7 @@ s32_t bt_mesh_proxy_adv_start(void)
 
 #if defined(CONFIG_BT_MESH_GATT_PROXY)
 	if (bt_mesh_is_provisioned()) {
-		return gatt_proxy_advertise();
+		return gatt_proxy_advertise(next_sub());
 	}
 #endif /* GATT_PROXY */
 
