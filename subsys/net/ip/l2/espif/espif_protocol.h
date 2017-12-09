@@ -8,14 +8,23 @@ enum api_errno {
 	ERRNO_EIO = 5,
 	ERRNO_EBADF = 9,
 	ERRNO_EINVAL = 22,
+	ERRNO_EROFS = 30,
 	ERRNO_ENOTSUP = 35,
 };
+
+
+#ifdef __cplusplus
+#endif
 
 
 enum api_irq_source {
 	IRQ_SOURCE_INVALID = 0,
 	IRQ_SOURCE_SOCKET_READY = 1,
 };
+
+
+#ifdef __cplusplus
+#endif
 
 
 
@@ -36,6 +45,10 @@ enum api_command {
 	COMMAND_MASK = 15,
 };
 
+
+#ifdef __cplusplus
+#endif
+
 enum api_data {
 	DATA_DATA_INVALID = 0,
 	DATA_START = 240,
@@ -43,6 +56,10 @@ enum api_data {
 	DATA_MID_PACKET = 2,
 	DATA_LAST_PACKET = 3,
 };
+
+
+#ifdef __cplusplus
+#endif
 
 enum api_response {
 	RESPONSE_OK = 0,
@@ -53,6 +70,10 @@ enum api_response {
 	RESPONSE_GENERAL_ERROR = 5,
 };
 
+
+#ifdef __cplusplus
+#endif
+
 enum api_connect_status {
 	CONNECT_STATUS_IDLE = 0,
 	CONNECT_STATUS_CONNECTING = 1,
@@ -62,6 +83,10 @@ enum api_connect_status {
 	CONNECT_STATUS_GOT_IP = 5,
 };
 
+
+#ifdef __cplusplus
+#endif
+
 enum api_phy_mode {
 	PHY_MODE_INVALID = 0,
 	PHY_MODE_M11B = 1,
@@ -69,17 +94,29 @@ enum api_phy_mode {
 	PHY_MODE_M11N = 3,
 };
 
+
+#ifdef __cplusplus
+#endif
+
 enum api_family {
 	FAMILY_UNSPEC = 0,
 	FAMILY_INET = 2,
 	FAMILY_INET6 = 10,
 };
 
+
+#ifdef __cplusplus
+#endif
+
 enum api_sock_type {
 	SOCK_TYPE_SOCK_TYPE_INVALID = 0,
 	SOCK_TYPE_STREAM = 1,
 	SOCK_TYPE_DGRAM = 2,
 };
+
+
+#ifdef __cplusplus
+#endif
 
 enum api_ip_protocol {
 	IP_PROTOCOL_INVALID = 0,
@@ -89,14 +126,23 @@ enum api_ip_protocol {
 	IP_PROTOCOL_ICMPV6 = 58,
 };
 
+
+#ifdef __cplusplus
+#endif
+
 enum api_socket_event {
 	SOCKET_EVENT_NONE = 0,
 	SOCKET_EVENT_CONNECTED = 1,
-	SOCKET_EVENT_READ = 2,
-	SOCKET_EVENT_WRITE = 4,
+	SOCKET_EVENT_READ_READY = 2,
+	SOCKET_EVENT_WRITE_READY = 4,
 	SOCKET_EVENT_EXCEPT = 8,
 	SOCKET_EVENT_CLOSED = 16,
 };
+
+
+#ifdef __cplusplus
+#endif
+
 
 
 
@@ -137,24 +183,27 @@ enum api_msg_id {
 	API_GPIO_PINS = 402,
 
 	/* Sockets */
-	API_SOCKETS_ERR = 1001,
-	API_SOCKETS_EVENT_FDS = 1002,
-	API_SOCKETS_GET = 1010,
+	API_SOCKETS_ERR = 901,
+	API_SOCKETS_EVENT_FDS = 902,
+	API_SOCKETS_GET = 910,
 
 	/* Socket */
-	API_SOCKET_STRIDE = 32,
-	API_SOCKET_ERR = 1101,
-	API_SOCKET_FD = 1102,
-	API_SOCKET_EVENTS = 1103,
-	API_SOCKET_BIND = 1110,
-	API_SOCKET_LISTEN = 1111,
-	API_SOCKET_CONNECT = 1112,
-	API_SOCKET_ACCEPT = 1113,
-	API_SOCKET_PUT = 1114,
-	API_SOCKET_RECV_AVAIL = 1115,
-	API_SOCKET_RECV = 1116,
-	API_SOCKET_SEND = 1117,
-	API_SOCKET_SENDTO = 1118,
+	API_SOCKET_STRIDE = 100,
+	API_SOCKET_ERR = 1001,
+	API_SOCKET_FD = 1002,
+	API_SOCKET_EVENTS = 1003,
+	API_SOCKET_BIND = 1010,
+	API_SOCKET_LISTEN = 1011,
+	API_SOCKET_CONNECT = 1012,
+	API_SOCKET_ACCEPT = 1013,
+	API_SOCKET_PUT = 1014,
+	API_SOCKET_RECV_AVAIL = 1015,
+	API_SOCKET_RECV = 1016,
+	API_SOCKET_SEND = 1017,
+	API_SOCKET_SENDTO = 1018,
 
 
 };
+
+#ifdef __cplusplus
+#endif
