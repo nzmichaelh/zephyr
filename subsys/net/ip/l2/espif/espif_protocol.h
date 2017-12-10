@@ -2,6 +2,11 @@
 
 #pragma once
 
+enum api_version {
+	VERSION_UNSPEC = 0,
+	VERSION_PROTOCOL = 256,
+};
+
 enum api_errno {
 	ERRNO_EOK = 0,
 	ERRNO_ENOENT = 2,
