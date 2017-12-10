@@ -34,9 +34,15 @@
 #define ESPIF_DATA_PACKET_SIZE 120
 
 struct espif_net_context {
-	sys_snode_t node;
 	struct net_context *context;
 	int fd;
+	net_context_connect_cb_t connect_cb;
+	net_context_send_cb_t send_cb;
+	void *token;
+	void *user_data;
+
+	net_context_recv_cb_t recv_cb;
+	void *recv_data;
 };
 
 struct espif_dev_context {
@@ -49,7 +55,10 @@ struct espif_dev_context {
 	bool synced;
 
 	u8_t mac_addr[6];
-	sys_slist_t contexts;
+
+	struct espif_net_context net_ctx[CONFIG_NET_MAX_CONN];
+	struct net_buf_simple buf;
+	u8_t buf_data[1600];
 };
 
 static const struct net_offload espif_offload_api;
@@ -121,6 +130,8 @@ static int espif_dev_recv(struct device *dev, struct net_buf_simple *buf,
 			s32_t elapsed = k_uptime_get_32() - start;
 
 			if (elapsed >= ESPIF_RECV_TIMEOUT) {
+				SYS_LOG_DBG("%p: timeout after %d", dev,
+					    len - (end - p));
 				*err = -ETIMEDOUT;
 				return *err;
 			}
@@ -279,6 +290,25 @@ static u32_t espif_dev_read_u32(struct device *dev, u32_t addr, int *err)
 	return net_buf_simple_pull_be32(buf);
 }
 
+static int espif_dev_read_dma(struct device *dev, int addr,
+			      struct net_buf_simple *sink, int len, int *err)
+{
+	struct net_buf_simple *buf = NET_BUF_SIMPLE(10);
+
+	SYS_LOG_DBG("addr=%d len=%d", addr, len);
+	net_buf_simple_init(buf, 0);
+
+	net_buf_simple_add_u8(buf, COMMAND_DMA_READ);
+	net_buf_simple_add_be24(buf, addr);
+	net_buf_simple_add_be16(buf, len);
+
+	if (espif_dev_send_cmd(dev, buf, err) != 0) {
+		return *err;
+	}
+
+	return espif_dev_recv_data(dev, sink, len, err);
+}
+
 static int espif_dev_write_u32(struct device *dev, int addr, u32_t value,
 			       int *err)
 {
@@ -325,6 +355,127 @@ static void espif_dev_next(struct device *dev)
 	k_mutex_unlock(&ctx->mut);
 }
 
+static int espif_dev_dispatch_recv(struct device *dev,
+				   struct espif_net_context *net_ctx, int *err)
+{
+	struct espif_dev_context *ctx = dev->driver_data;
+	struct net_pkt *pkt = NULL;
+	s32_t avail;
+
+	SYS_LOG_DBG("");
+
+	avail = espif_dev_read_u32(dev,
+				   API_SOCKET_RECV_AVAIL + net_ctx->fd, err);
+
+	if (*err != 0) {
+		return *err;
+	}
+
+	SYS_LOG_INF("reading avail=%d", avail);
+
+	pkt = net_pkt_get_rx(net_ctx->context, K_NO_WAIT);
+
+	if (pkt == NULL) {
+		SYS_LOG_WRN("couldn't allocate a rx_pkt");
+		goto enomem;
+	}
+
+	if (espif_dev_read_dma(dev, API_SOCKET_RECV + net_ctx->fd, &ctx->buf,
+			       avail, err) != 0) {
+		SYS_LOG_WRN("read error err=%d", *err);
+		goto erred;
+	}
+
+	if (!net_pkt_append_all(pkt, avail, ctx->buf.data, K_NO_WAIT)) {
+		SYS_LOG_WRN("couldn't append data");
+		goto enomem;
+	}
+
+	espif_dev_write_u32(dev, API_SOCKET_RECV_AVAIL + net_ctx->fd, avail,
+			    err);
+
+	if (net_ctx->recv_cb != NULL) {
+		SYS_LOG_INF("dispatching read cb");
+		net_pkt_set_appdata(pkt, net_pkt_ip_data(pkt));
+		net_pkt_set_appdatalen(pkt, net_pkt_get_len(pkt));
+		net_ctx->recv_cb(net_ctx->context, pkt, 0, net_ctx->recv_data);
+	} else {
+		net_pkt_unref(pkt);
+	}
+
+	return *err;
+
+enomem:
+	*err = -ENOMEM;
+erred:
+	if (pkt != NULL) {
+		net_pkt_unref(pkt);
+	}
+
+	return *err;
+}
+
+static void espif_dev_dispatch_events(struct device *dev, u32_t event_fds,
+				      int *err)
+{
+	struct espif_dev_context *ctx = dev->driver_data;
+
+	while (*err == 0 && event_fds != 0) {
+		struct espif_net_context *net_ctx = NULL;
+		u32_t fd_bit = find_lsb_set(event_fds) - 1;
+		int fd = fd_bit * API_SOCKET_STRIDE;
+		int i;
+
+		event_fds &= ~(1 << fd_bit);
+
+		for (i = 0; i < CONFIG_NET_MAX_CONN; i++) {
+			if (ctx->net_ctx[i].fd == fd) {
+				net_ctx = &ctx->net_ctx[i];
+				break;
+			}
+		}
+
+		u32_t events =
+			espif_dev_read_u32(dev, API_SOCKET_EVENTS + fd, err);
+
+		espif_dev_write_u32(dev, API_SOCKET_EVENTS + fd, events, err);
+
+		if (events == 0) {
+			continue;
+		}
+
+		SYS_LOG_INF("err=%d fd=%d events=%x", *err, fd, events);
+
+		if (*err != 0) {
+		}
+		if (net_ctx == NULL) {
+			SYS_LOG_WRN("action on a non-exisent fd");
+			continue;
+		}
+
+		if ((events & SOCKET_EVENT_CONNECTED) != 0) {
+			if (net_ctx->connect_cb) {
+				SYS_LOG_INF("calling connect_cb");
+				net_ctx->connect_cb(net_ctx->context, 0,
+						    net_ctx->user_data);
+			}
+		}
+
+		if ((events & SOCKET_EVENT_WRITE_READY) != 0) {
+			if (net_ctx->send_cb) {
+				SYS_LOG_INF("calling send_cb");
+				net_ctx->send_cb(net_ctx->context, 0,
+						 net_ctx->token,
+						 net_ctx->user_data);
+			}
+		}
+
+		if ((events & SOCKET_EVENT_READ_READY) != 0) {
+			espif_dev_dispatch_recv(dev, net_ctx, err);
+		}
+	}
+}
+
 static void espif_dev_tick(struct k_work *work)
 {
 	struct espif_dev_context *ctx =
@@ -346,27 +497,10 @@ static void espif_dev_tick(struct k_work *work)
 			ctx->synced = true;
 		}
 	} else {
-		u32_t event_fds =
-			espif_dev_read_u32(dev, API_SOCKETS_EVENT_FDS, &err);
-
-		while (err == 0 && event_fds != 0) {
-			u32_t fd = find_lsb_set(event_fds) - 1;
-			u32_t events = espif_dev_read_u32(
-				dev, API_SOCKET_EVENTS + fd * API_SOCKET_STRIDE,
-				&err);
-
-			if (events != 0) {
-				SYS_LOG_INF("err=%d fd=%d events=%x", err, fd,
-					    events);
-
-				espif_dev_write_u32(dev,
-						    API_SOCKET_EVENTS +
-						    fd * API_SOCKET_STRIDE,
-						    events, &err);
-			}
-
-			event_fds &= ~(1 << fd);
-		}
+		espif_dev_dispatch_events(
+			dev,
+			espif_dev_read_u32(dev, API_SOCKETS_EVENT_FDS, &err),
+			&err);
 	}
 
 	k_mutex_unlock(&ctx->mut);
@@ -377,6 +511,9 @@ static void espif_dev_tick(struct k_work *work)
 static int espif_dev_init(struct device *dev)
 {
 	struct espif_dev_context *ctx = dev->driver_data;
+
+	ctx->buf.data = ctx->buf_data;
+	net_buf_simple_init(&ctx->buf, 0);
 
 	ctx->dev = dev;
 	ctx->port = device_get_binding(CONFIG_UART_PIPE_ON_DEV_NAME);
@@ -408,8 +545,27 @@ static int espif_get(sa_family_t family, enum net_sock_type type,
 	struct net_buf_simple *buf = NET_BUF_SIMPLE(10);
 	int err = 0;
 	int fd;
+	int i;
+	struct espif_net_context *net_ctx = NULL;
 
 	NET_WARN("");
+
+	for (i = 0; i < CONFIG_NET_MAX_CONN; i++) {
+		if (ctx->net_ctx[i].context == NULL) {
+			net_ctx = &ctx->net_ctx[i];
+			break;
+		}
+	}
+
+	if (net_ctx == NULL) {
+		return -EMFILE;
+	}
+
+	net_ctx->context = *context;
+	(*context)->offload_data = net_ctx;
+
+	net_ctx->fd = -1;
+	net_ctx->connect_cb = NULL;
 
 	net_buf_simple_init(buf, 0);
 	net_buf_simple_add_u8(buf, family);
@@ -425,15 +581,17 @@ static int espif_get(sa_family_t family, enum net_sock_type type,
 
 	NET_DBG("err=%d fd=%d", err, fd);
 
-	if (err == 0) {
-		if (fd >= 0) {
-			(*context)->offload_data = fd;
-		} else {
-			err = fd;
-		}
+	if (err != 0) {
+		return err;
 	}
 
-	return err;
+	if (fd < 0) {
+		return fd;
+	}
+
+	net_ctx->fd = fd;
+
+	return 0;
 }
 
 static int espif_bind(struct net_context *context, const struct sockaddr *addr,
@@ -442,12 +600,13 @@ static int espif_bind(struct net_context *context, const struct sockaddr *addr,
 	struct net_if *iface = net_if_get_by_index(context->iface);
 	struct device *dev = net_if_get_device(iface);
 	struct espif_dev_context *ctx = dev->driver_data;
+	struct espif_net_context *net_ctx = context->offload_data;
 	struct net_buf_simple *buf = NET_BUF_SIMPLE(10);
 	const struct sockaddr_in *addr4 = (const struct sockaddr_in *)addr;
 	int err = 0;
 	int port;
 
-	NET_WARN("fd=%d port=%u", context->offload_data, addr4->sin_port);
+	NET_WARN("fd=%d port=%u", net_ctx->fd, addr4->sin_port);
 
 	net_buf_simple_init(buf, 0);
 	net_buf_simple_add_u8(buf, FAMILY_INET);
@@ -456,8 +615,7 @@ static int espif_bind(struct net_context *context, const struct sockaddr *addr,
 
 	k_mutex_lock(&ctx->mut, K_FOREVER);
 
-	espif_dev_write_dma(dev, API_SOCKET_BIND + context->offload_data, buf,
-			    &err);
+	espif_dev_write_dma(dev, API_SOCKET_BIND + net_ctx->fd, buf, &err);
 	port = espif_dev_read_u32(dev, API_SOCKETS_ERR, &err);
 
 	k_mutex_unlock(&ctx->mut);
@@ -488,13 +646,15 @@ static int espif_connect(struct net_context *context,
 	struct net_if *iface = net_if_get_by_index(context->iface);
 	struct device *dev = net_if_get_device(iface);
 	struct espif_dev_context *ctx = dev->driver_data;
+	struct espif_net_context *net_ctx = context->offload_data;
 	struct net_buf_simple *buf = NET_BUF_SIMPLE(10);
 	const struct sockaddr_in *addr4 = (const struct sockaddr_in *)addr;
 	int err = 0;
 
-	NET_WARN("fd=%d family=%d addr=%x port=%d", context->offload_data,
-		 addr4->sin_family, ntohl(addr4->sin_addr.in4_u.u4_addr32[0]),
-		 ntohs(addr4->sin_port));
+	NET_WARN("fd=%d family=%d addr=%x port=%d timeout=%d cb=%p",
+		 net_ctx->fd, addr4->sin_family,
+		 ntohl(addr4->sin_addr.in4_u.u4_addr32[0]),
+		 ntohs(addr4->sin_port), timeout, cb);
 
 	net_buf_simple_init(buf, 0);
 	net_buf_simple_add_u8(buf, addr4->sin_family);
@@ -503,8 +663,10 @@ static int espif_connect(struct net_context *context,
 
 	k_mutex_lock(&ctx->mut, K_FOREVER);
 
-	espif_dev_write_dma(dev, API_SOCKET_CONNECT + context->offload_data,
-			    buf, &err);
+	net_ctx->user_data = user_data;
+	net_ctx->connect_cb = cb;
+
+	espif_dev_write_dma(dev, API_SOCKET_CONNECT + net_ctx->fd, buf, &err);
 	k_mutex_unlock(&ctx->mut);
 
 	NET_DBG("err=%d", err);
@@ -522,8 +684,29 @@ static int espif_accept(struct net_context *context, net_tcp_accept_cb_t cb,
 static int espif_send(struct net_pkt *pkt, net_context_send_cb_t cb,
 		      s32_t timeout, void *token, void *user_data)
 {
-	NET_WARN("");
-	return -1;
+	struct net_context *context = pkt->context;
+	struct net_if *iface = net_if_get_by_index(context->iface);
+	struct device *dev = net_if_get_device(iface);
+	struct espif_dev_context *ctx = dev->driver_data;
+	struct espif_net_context *net_ctx = context->offload_data;
+	int err = 0;
+
+	NET_WARN("fd=%d len=%d timeout=%d cb=%p", net_ctx->fd,
+		 net_pkt_get_len(pkt), timeout, cb);
+
+	k_mutex_lock(&ctx->mut, K_FOREVER);
+
+	net_ctx->token = token;
+	net_ctx->user_data = user_data;
+	net_ctx->send_cb = cb;
+
+	espif_dev_write_dma(dev, API_SOCKET_SEND + net_ctx->fd, &pkt->frags->b,
+			    &err);
+	k_mutex_unlock(&ctx->mut);
+
+	NET_DBG("err=%d", err);
+
+	return err;
 }
 
 static int espif_sendto(struct net_pkt *pkt, const struct sockaddr *dst_addr,
@@ -537,14 +720,45 @@ static int espif_sendto(struct net_pkt *pkt, const struct sockaddr *dst_addr,
 static int espif_recv(struct net_context *context, net_context_recv_cb_t cb,
 		      s32_t timeout, void *user_data)
 {
-	NET_WARN("");
-	return -1;
+	struct net_if *iface = net_if_get_by_index(context->iface);
+	struct device *dev = net_if_get_device(iface);
+	struct espif_dev_context *ctx = dev->driver_data;
+	struct espif_net_context *net_ctx = context->offload_data;
+
+	NET_WARN("fd=%d timeout=%d cb=%p", net_ctx->fd, timeout, cb);
+
+	k_mutex_lock(&ctx->mut, K_FOREVER);
+
+	net_ctx->recv_data = user_data;
+	net_ctx->recv_cb = cb;
+
+	k_mutex_unlock(&ctx->mut);
+
+	return 0;
 }
 
 static int espif_put(struct net_context *context)
 {
-	NET_WARN("");
-	return -1;
+	struct net_if *iface = net_if_get_by_index(context->iface);
+	struct device *dev = net_if_get_device(iface);
+	struct espif_dev_context *ctx = dev->driver_data;
+	struct espif_net_context *net_ctx = context->offload_data;
+	int err = 0;
+
+	NET_WARN("fd=%d", net_ctx->fd);
+
+	k_mutex_lock(&ctx->mut, K_FOREVER);
+	espif_dev_write_u32(dev, API_SOCKET_PUT + net_ctx->fd, 0, &err);
+
+	if (net_ctx->recv_cb != NULL) {
+		net_ctx->recv_cb(context, NULL, 0, net_ctx->recv_data);
+	}
+
+	net_ctx->context = NULL;
+
+	k_mutex_unlock(&ctx->mut);
+
+	return err;
 }
 
 static void espif_if_init(struct net_if *iface)
