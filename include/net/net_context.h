@@ -268,6 +268,10 @@ struct net_context {
 		struct k_fifo accept_q;
 	};
 #endif /* CONFIG_NET_SOCKETS */
+
+#if defined(CONFIG_NET_OFFLOAD)
+	void *offload_data;
+#endif
 };
 
 static inline bool net_context_is_used(struct net_context *context)

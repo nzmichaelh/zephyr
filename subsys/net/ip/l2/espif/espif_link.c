@@ -6,7 +6,7 @@
 
 #define SYS_LOG_DOMAIN "espif/link"
 #define NET_LOG_ENABLED 1
-#define NET_SYS_LOG_LEVEL SYS_LOG_LEVEL_INFO
+#define NET_SYS_LOG_LEVEL SYS_LOG_LEVEL_DBG
 
 #include <kernel.h>
 

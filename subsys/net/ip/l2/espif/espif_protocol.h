@@ -206,8 +206,7 @@ enum api_msg_id {
 	API_SOCKET_RECV = 1016,
 	API_SOCKET_SEND = 1017,
 	API_SOCKET_SENDTO = 1018,
-
-
+	API_SOCKET_SENDTO_DEST_ADDR = 1019,
 };
 
 #ifdef __cplusplus
