@@ -84,7 +84,7 @@ static int spi_sam0_configure(struct spi_config *config)
 	/* 8 bits per transfer */
 	ctrlb.bit.CHSIZE = 0;
 
-	div = (SOC_ATMEL_SAM0_GCLK0_FREQ_HZ / 2 / config->frequency) - 1;
+	div = ((SOC_ATMEL_SAM0_GCLK0_FREQ_HZ / config->frequency) + 1) / 2 - 1;
 	div = max(0, min(UINT8_MAX, div));
 
 	/* Update the configuration if it has changed. */
@@ -137,6 +137,30 @@ static void spi_sam0_shift_master(SercomSpi *regs, struct spi_sam0_data *data)
 	}
 }
 
+static void spi_sam0_fast_tx(struct spi_config *config,
+			     const struct spi_buf *tx_bufs, size_t tx_count)
+{
+	const struct spi_sam0_config *cfg = config->dev->config->config_info;
+	SercomSpi *regs = cfg->regs;
+
+	while (tx_count--) {
+		const u8_t *p = tx_bufs->buf;
+		const u8_t *pend = tx_bufs->buf + tx_bufs->len;
+
+		for (; p != pend; p++) {
+			while (!regs->INTFLAG.bit.DRE) {
+			}
+
+			regs->DATA.reg = *p;
+		}
+	}
+
+	while (!regs->INTFLAG.bit.TXC) {
+	}
+
+	(void)regs->DATA.reg;
+}
+
 static int spi_sam0_transceive(struct spi_config *config,
 			       const struct spi_buf *tx_bufs, size_t tx_count,
 			       struct spi_buf *rx_bufs, size_t rx_count)
@@ -155,14 +179,20 @@ static int spi_sam0_transceive(struct spi_config *config,
 		goto done;
 	}
 
-	spi_context_buffers_setup(&data->ctx, tx_bufs, tx_count, rx_bufs,
-				  rx_count, 1);
-
+	data->ctx.config = config;
+	spi_context_cs_configure(&data->ctx);
 	spi_context_cs_control(&data->ctx, true);
 
-	do {
-		spi_sam0_shift_master(regs, data);
-	} while (spi_sam0_transfer_ongoing(data));
+	if (rx_bufs == NULL || rx_count == 0) {
+		spi_sam0_fast_tx(config, tx_bufs, tx_count);
+	} else {
+		spi_context_buffers_setup(&data->ctx, tx_bufs, tx_count,
+					  rx_bufs, rx_count, 1);
+
+		do {
+			spi_sam0_shift_master(regs, data);
+		} while (spi_sam0_transfer_ongoing(data));
+	}
 
 	spi_context_cs_control(&data->ctx, false);
 
@@ -180,6 +210,7 @@ static int spi_sam0_release(struct spi_config *config)
 static int spi_sam0_init(struct device *dev)
 {
 	const struct spi_sam0_config *cfg = dev->config->config_info;
+	struct spi_sam0_data *data = dev->driver_data;
 	SercomSpi *regs = cfg->regs;
 
 	/* Enable the GCLK */
@@ -198,6 +229,8 @@ static int spi_sam0_init(struct device *dev)
 	/* Disable all SPI interrupts */
 	regs->INTENCLR.reg = SERCOM_SPI_INTENCLR_MASK;
 	wait_synchronization(regs);
+
+	spi_context_unlock_unconditionally(&data->ctx);
 
 	/* The device will be configured and enabled when transceive
 	 * is called.
