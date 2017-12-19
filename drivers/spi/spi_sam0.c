@@ -137,28 +137,148 @@ static void spi_sam0_shift_master(SercomSpi *regs, struct spi_sam0_data *data)
 	}
 }
 
-static void spi_sam0_fast_tx(struct spi_config *config,
-			     const struct spi_buf *tx_bufs, size_t tx_count)
+/* Fast path that transmits a buf. */
+static void spi_sam0_fast_tx(SercomSpi *regs, const struct spi_buf *tx_buf)
+{
+	const u8_t *p = tx_buf->buf;
+	const u8_t *pend = tx_buf->buf + tx_buf->len;
+
+	for (; p != pend; p++) {
+		while (!regs->INTFLAG.bit.DRE) {
+		}
+
+		regs->DATA.reg = *p;
+	}
+
+	/* Note that the RX buf is full and the transmit may be ongoing. */
+}
+
+/* Fast path that reads into a buf. */
+static void spi_sam0_fast_rx(SercomSpi *regs, struct spi_buf *rx_buf)
+{
+	u8_t *p = rx_buf->buf;
+	size_t len = rx_buf->len;
+
+	while (regs->INTFLAG.bit.RXC) {
+		(void)regs->DATA.reg;
+	}
+
+	if (len <= 0) {
+		return;
+	}
+
+	/* Load the first outgoing byte. */
+	while (!regs->INTFLAG.bit.DRE) {
+	}
+	regs->DATA.reg = 0;
+
+	while (len--) {
+		if (len != 0) {
+			while (!regs->INTFLAG.bit.DRE) {
+			}
+			regs->DATA.reg = 0;
+		}
+
+		while (!regs->INTFLAG.bit.RXC) {
+		}
+
+		*p++ = regs->DATA.reg;
+	}
+
+	/* Note that all transmits are complete and the RX buf is empty. */
+}
+
+/* Fast path that writes and reads bufs of the same length. */
+static void spi_sam0_fast_txrx(SercomSpi *regs, const struct spi_buf *tx_buf,
+			       struct spi_buf *rx_buf)
+{
+	const u8_t *psrc = tx_buf->buf;
+	u8_t *p = rx_buf->buf;
+	size_t len = rx_buf->len;
+
+	while (regs->INTFLAG.bit.RXC) {
+		(void)regs->DATA.reg;
+	}
+
+	if (len <= 0) {
+		return;
+	}
+
+	/* Load the first outgoing byte. */
+	while (!regs->INTFLAG.bit.DRE) {
+	}
+	regs->DATA.reg = *psrc++;
+
+	while (len--) {
+		if (len != 0) {
+			while (!regs->INTFLAG.bit.DRE) {
+			}
+			regs->DATA.reg = *psrc++;
+		}
+
+		while (!regs->INTFLAG.bit.RXC) {
+		}
+
+		*p++ = regs->DATA.reg;
+	}
+
+	/* Note that all transmits are complete and the RX buf is empty. */
+}
+
+/* Finish any ongoing writes and drop any remaining read data. */
+static void spi_sam0_finish(SercomSpi *regs)
+{
+	while (!regs->INTFLAG.bit.TXC) {
+	}
+	while (regs->INTFLAG.bit.RXC) {
+		(void)regs->DATA.reg;
+	}
+}
+
+/* Fast path where every overlapping tx and rx buffer is the same length. */
+static void spi_sam0_fast_transceive(struct spi_config *config,
+				     const struct spi_buf *tx_bufs,
+				     size_t tx_count, struct spi_buf *rx_bufs,
+				     size_t rx_count)
 {
 	const struct spi_sam0_config *cfg = config->dev->config->config_info;
 	SercomSpi *regs = cfg->regs;
 
-	while (tx_count--) {
-		const u8_t *p = tx_bufs->buf;
-		const u8_t *pend = tx_bufs->buf + tx_bufs->len;
+	while (tx_count != 0 && rx_count != 0) {
+		spi_sam0_fast_txrx(regs, tx_bufs, rx_bufs);
+		tx_bufs++;
+		tx_count--;
+		rx_bufs++;
+		rx_count--;
+	}
 
-		for (; p != pend; p++) {
-			while (!regs->INTFLAG.bit.DRE) {
-			}
+	for (; tx_count != 0; tx_count--) {
+		spi_sam0_fast_tx(regs, tx_bufs++);
+	}
 
-			regs->DATA.reg = *p;
+	for (; rx_count != 0; rx_count--) {
+		spi_sam0_fast_rx(regs, rx_bufs++);
+	}
+
+	spi_sam0_finish(regs);
+}
+
+/* Returns true if every overlapping tx and rx buf is the same length. */
+static bool spi_sam0_is_regular(const struct spi_buf *tx_bufs, size_t tx_count,
+				struct spi_buf *rx_bufs, size_t rx_count)
+{
+	while (tx_count != 0 && rx_count != 0) {
+		if (tx_bufs->len != rx_bufs->len) {
+			return false;
 		}
+
+		tx_bufs++;
+		tx_count--;
+		rx_bufs++;
+		rx_count--;
 	}
 
-	while (!regs->INTFLAG.bit.TXC) {
-	}
-
-	(void)regs->DATA.reg;
+	return true;
 }
 
 static int spi_sam0_transceive(struct spi_config *config,
@@ -175,7 +295,6 @@ static int spi_sam0_transceive(struct spi_config *config,
 	err = spi_sam0_configure(config);
 
 	if (err != 0) {
-		spi_context_release(&data->ctx, err);
 		goto done;
 	}
 
@@ -183,8 +302,9 @@ static int spi_sam0_transceive(struct spi_config *config,
 	spi_context_cs_configure(&data->ctx);
 	spi_context_cs_control(&data->ctx, true);
 
-	if (rx_bufs == NULL || rx_count == 0) {
-		spi_sam0_fast_tx(config, tx_bufs, tx_count);
+	if (spi_sam0_is_regular(tx_bufs, tx_count, rx_bufs, rx_count)) {
+		spi_sam0_fast_transceive(config, tx_bufs, tx_count, rx_bufs,
+					 rx_count);
 	} else {
 		spi_context_buffers_setup(&data->ctx, tx_bufs, tx_count,
 					  rx_bufs, rx_count, 1);
@@ -203,7 +323,10 @@ done:
 
 static int spi_sam0_release(struct spi_config *config)
 {
-	/* Locking is not implemented so release always succeeds. */
+	struct spi_sam0_data *data = config->dev->driver_data;
+
+	spi_context_unlock_unconditionally(&data->ctx);
+
 	return 0;
 }
 
@@ -214,9 +337,8 @@ static int spi_sam0_init(struct device *dev)
 	SercomSpi *regs = cfg->regs;
 
 	/* Enable the GCLK */
-	GCLK->CLKCTRL.reg =
-		cfg->gclk_clkctrl_id | GCLK_CLKCTRL_GEN_GCLK0
-		| GCLK_CLKCTRL_CLKEN;
+	GCLK->CLKCTRL.reg = cfg->gclk_clkctrl_id | GCLK_CLKCTRL_GEN_GCLK0 |
+			    GCLK_CLKCTRL_CLKEN;
 
 	/* Enable SERCOM clock in PM */
 	PM->APBCMASK.reg |= cfg->pm_apbcmask;
