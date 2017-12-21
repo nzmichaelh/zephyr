@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-/* Possible Cmd Codes for disk_ioctl() */
+/* Possible Cmd codes for disk_access_ioctl() */
 
 /* Get the number of sectors in the disk  */
 #define DISK_IOCTL_GET_SECTOR_COUNT		1
@@ -36,7 +36,7 @@ extern "C" {
 /* Commit any cached read/writes to disk */
 #define DISK_IOCTL_CTRL_SYNC			5
 
-/* Possible return bitmasks for disk_status() */
+/* Possible return bitmasks for disk_access_status() */
 #define DISK_STATUS_OK			0x00
 #define DISK_STATUS_UNINIT		0x01
 #define DISK_STATUS_NOMEDIA		0x02
