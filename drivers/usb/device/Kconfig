@@ -62,6 +62,21 @@ config USB_DC_STM32_RAM_SIZE
 	  In case of USB-OTG-FS controller, datasheet defines a shared FIFO size.
 	  For USB device controller, datasheet defines USB packet SRAM size.
 
+config USB_DC_SAM0
+	bool
+	prompt "SAM0 series USB Device Controller driver"
+	depends on SOC_FAMILY_SAM0
+	default n
+	help
+	  SAM0 family USB device controller Driver.
+
+config USB_DC_SAM0_IRQ_PRI
+	int "SAM0 USB driver Interrupt priority"
+	depends on USB_DC_SAM0
+	default 3
+	help
+	  USB interrupt priority.
+
 config SYS_LOG_USB_DRIVER_LEVEL
 	int
 	prompt "USB driver log level"
