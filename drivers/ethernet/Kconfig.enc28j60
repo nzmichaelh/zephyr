@@ -9,7 +9,6 @@
 menuconfig ETH_ENC28J60
 	bool "ENC28J60C Ethernet Controller"
 	depends on NET_L2_ETHERNET
-	depends on SPI_LEGACY_API
 	depends on SPI
 	default n
 	help
@@ -78,6 +77,12 @@ config ETH_ENC28J60_0_SPI_PORT_NAME
 	help
 	Master SPI port name through which ENC28J60C chip is accessed.
 
+config ETH_ENC28J60_0_SLAVE_PORT_NAME
+	string "ETH_ENC28J60 SPI slave select port name"
+	default "GPIO_0"
+	help
+	GPIO port name for the ENC28J60C chip select pin.
+
 config ETH_ENC28J60_0_SLAVE
 	hex "ETH_ENC28J60 SPI slave select pin"
 	default 1
@@ -86,7 +91,7 @@ config ETH_ENC28J60_0_SLAVE
 
 config ETH_ENC28J60_0_SPI_BUS_FREQ
 	int "ENC28J60C SPI bus speed in Hz"
-	default 128
+	default 20000000
 	help
 	This is the maximum supported SPI bus frequency.
 

@@ -25,12 +25,33 @@
 
 static void enc28j60_thread_main(void *arg1, void *unused1, void *unused2);
 
-static int eth_enc28j60_soft_reset(struct device *dev)
+/* Writes a buffer over SPI */
+static int eth_enc28j60_write(struct device *dev, const u8_t *data, int len)
 {
 	struct eth_enc28j60_runtime *context = dev->driver_data;
+	struct spi_buf buf[1] = {
+		{.buf = (u8_t *)data, .len = len}
+	};
+
+	return spi_write(&context->spi, buf, 1);
+}
+
+/* Writes a buffer over SPI, reading back into the same buffer */
+static int eth_enc28j60_transceive(struct device *dev, u8_t *data, int len)
+{
+	struct eth_enc28j60_runtime *context = dev->driver_data;
+	struct spi_buf buf[1] = {
+		{.buf = data, .len = len}
+	};
+
+	return spi_transceive(&context->spi, buf, 1, buf, 1);
+}
+
+static int eth_enc28j60_soft_reset(struct device *dev)
+{
 	u8_t tx_buf[2] = {ENC28J60_SPI_SC, 0xFF};
 
-	return spi_write(context->spi, tx_buf, 2);
+	return eth_enc28j60_write(dev, tx_buf, sizeof(tx_buf));
 }
 
 static void eth_enc28j60_set_bank(struct device *dev, u16_t reg_addr)
@@ -43,11 +64,11 @@ static void eth_enc28j60_set_bank(struct device *dev, u16_t reg_addr)
 	tx_buf[0] = ENC28J60_SPI_RCR | ENC28J60_REG_ECON1;
 	tx_buf[1] = 0x0;
 
-	if (!spi_transceive(context->spi, tx_buf, 2, tx_buf, 2)) {
+	if (!eth_enc28j60_transceive(dev, tx_buf, sizeof(tx_buf))) {
 		tx_buf[0] = ENC28J60_SPI_WCR | ENC28J60_REG_ECON1;
 		tx_buf[1] = (tx_buf[1] & 0xFC) | ((reg_addr >> 8) & 0x0F);
 
-		spi_write(context->spi, tx_buf, 2);
+		eth_enc28j60_write(dev, tx_buf, sizeof(tx_buf));
 	} else {
 		SYS_LOG_DBG("Failure while setting bank to %d", reg_addr);
 	}
@@ -66,7 +87,7 @@ static void eth_enc28j60_write_reg(struct device *dev, u16_t reg_addr,
 	tx_buf[0] = ENC28J60_SPI_WCR | (reg_addr & 0xFF);
 	tx_buf[1] = value;
 
-	spi_write(context->spi, tx_buf, 2);
+	eth_enc28j60_write(dev, tx_buf, sizeof(tx_buf));
 
 	k_sem_give(&context->spi_sem);
 }
@@ -87,7 +108,7 @@ static void eth_enc28j60_read_reg(struct device *dev, u16_t reg_addr,
 	tx_buf[0] = ENC28J60_SPI_RCR | (reg_addr & 0xFF);
 	tx_buf[1] = 0x0;
 
-	if (!spi_transceive(context->spi, tx_buf, tx_size, tx_buf, tx_size)) {
+	if (!eth_enc28j60_transceive(dev, tx_buf, tx_size)) {
 		*value = tx_buf[tx_size - 1];
 	} else {
 		SYS_LOG_DBG("Failure while reading register %d", reg_addr);
@@ -108,7 +129,7 @@ static void eth_enc28j60_set_eth_reg(struct device *dev, u16_t reg_addr,
 	tx_buf[0] = ENC28J60_SPI_BFS | (reg_addr & 0xFF);
 	tx_buf[1] = value;
 
-	spi_write(context->spi, tx_buf, 2);
+	eth_enc28j60_write(dev, tx_buf, sizeof(tx_buf));
 
 	k_sem_give(&context->spi_sem);
 }
@@ -125,7 +146,7 @@ static void eth_enc28j60_clear_eth_reg(struct device *dev, u16_t reg_addr,
 	tx_buf[0] = ENC28J60_SPI_BFC | (reg_addr & 0xFF);
 	tx_buf[1] = value;
 
-	spi_write(context->spi, tx_buf, 2);
+	eth_enc28j60_write(dev, tx_buf, sizeof(tx_buf));
 
 	k_sem_give(&context->spi_sem);
 }
@@ -148,14 +169,14 @@ static void eth_enc28j60_write_mem(struct device *dev, u8_t *data_buffer,
 	     ++i, index_buf += MAX_BUFFER_LENGTH) {
 		context->mem_buf[0] = ENC28J60_SPI_WBM;
 		memcpy(context->mem_buf + 1, index_buf, MAX_BUFFER_LENGTH);
-		spi_write(context->spi,
+		eth_enc28j60_write(dev,
 			  context->mem_buf, MAX_BUFFER_LENGTH + 1);
 	}
 
 	if (num_remaining > 0) {
 		context->mem_buf[0] = ENC28J60_SPI_WBM;
 		memcpy(context->mem_buf + 1, index_buf, num_remaining);
-		spi_write(context->spi, context->mem_buf, num_remaining + 1);
+		eth_enc28j60_write(dev, context->mem_buf, num_remaining + 1);
 	}
 
 	k_sem_give(&context->spi_sem);
@@ -177,9 +198,8 @@ static void eth_enc28j60_read_mem(struct device *dev, u8_t *data_buffer,
 	     ++i, data_buffer += MAX_BUFFER_LENGTH) {
 		context->mem_buf[0] = ENC28J60_SPI_RBM;
 
-		if (!spi_transceive(context->spi,
-				    context->mem_buf, MAX_BUFFER_LENGTH + 1,
-				    context->mem_buf, MAX_BUFFER_LENGTH + 1)) {
+		if (!eth_enc28j60_transceive(
+			    dev, context->mem_buf, MAX_BUFFER_LENGTH + 1)) {
 			if (data_buffer) {
 				memcpy(data_buffer, context->mem_buf + 1,
 				       MAX_BUFFER_LENGTH);
@@ -192,9 +212,8 @@ static void eth_enc28j60_read_mem(struct device *dev, u8_t *data_buffer,
 	if (num_remaining > 0) {
 		context->mem_buf[0] = ENC28J60_SPI_RBM;
 
-		if (!spi_transceive(context->spi,
-				    context->mem_buf, num_remaining + 1,
-				    context->mem_buf, num_remaining + 1)) {
+		if (!eth_enc28j60_transceive(
+			    dev, context->mem_buf, num_remaining + 1)) {
 			if (data_buffer) {
 				memcpy(data_buffer, context->mem_buf + 1,
 				       num_remaining);
@@ -348,18 +367,25 @@ static int eth_enc28j60_init(struct device *dev)
 {
 	const struct eth_enc28j60_config *config = dev->config->config_info;
 	struct eth_enc28j60_runtime *context = dev->driver_data;
-	struct spi_config spi_cfg;
 
 	k_sem_init(&context->spi_sem, 1, UINT_MAX);
 
-	context->gpio = device_get_binding((char *)config->gpio_port);
+	context->gpio = device_get_binding(config->gpio_port);
 	if (!context->gpio) {
 		SYS_LOG_ERR("GPIO port %s not found", config->gpio_port);
 		return -EINVAL;
 	}
 
-	context->spi = device_get_binding((char *)config->spi_port);
-	if (!context->spi) {
+	context->cs.gpio_dev = device_get_binding(config->spi_slave_port);
+	if (!context->gpio) {
+		SYS_LOG_ERR("Chip select port %s not found",
+			    config->spi_slave_port);
+		return -EINVAL;
+	}
+	context->cs.gpio_pin = CONFIG_ETH_ENC28J60_0_SLAVE;
+
+	context->spi.dev = device_get_binding(config->spi_port);
+	if (!context->spi.dev) {
 		SYS_LOG_ERR("SPI master port %s not found", config->spi_port);
 		return -EINVAL;
 	}
@@ -387,17 +413,9 @@ static int eth_enc28j60_init(struct device *dev)
 	/* Initialize SPI:
 	 * Mode: 0/0; Size: 8 bits; MSB
 	 */
-	spi_cfg.config = 8 << 4;
-	spi_cfg.max_sys_freq = config->spi_freq;
-
-	if (spi_configure(context->spi, &spi_cfg) < 0) {
-		SYS_LOG_ERR("Failed to configure SPI");
-		return -EIO;
-	}
-
-	if (spi_slave_select(context->spi, config->spi_slave) < 0) {
-		return -EIO;
-	}
+	context->spi.operation = SPI_WORD_SET(8);
+	context->spi.frequency = config->spi_freq;
+	context->spi.cs = &context->cs;
 
 	if (eth_enc28j60_soft_reset(dev)) {
 		SYS_LOG_ERR("Soft-reset failed");
@@ -717,6 +735,7 @@ static const struct eth_enc28j60_config eth_enc28j60_0_config = {
 	.gpio_pin = CONFIG_ETH_ENC28J60_0_GPIO_PIN,
 	.spi_port = CONFIG_ETH_ENC28J60_0_SPI_PORT_NAME,
 	.spi_freq  = CONFIG_ETH_ENC28J60_0_SPI_BUS_FREQ,
+	.spi_slave_port = CONFIG_ETH_ENC28J60_0_SLAVE_PORT_NAME,
 	.spi_slave = CONFIG_ETH_ENC28J60_0_SLAVE,
 	.full_duplex = CONFIG_ETH_EN28J60_0_FULL_DUPLEX,
 	.timeout = CONFIG_ETH_EN28J60_TIMEOUT,
