@@ -32,6 +32,20 @@ and also in the :file:`samples/net/http_server/src/config.h` file.
 
 To use QEMU for testing, follow the :ref:`networking_with_qemu` guide.
 
+To communicate with the board over SLIP, ensure that uart-pipe is
+configured in the board's Device Tree.  Use `net-tools` to set up a
+SLIP TAP connection to the board:
+
+.. code-block:: console
+
+	sudo ./tunslip6 -s /dev/ttyUSB0 -v3 -T 2001:db8::2/64
+
+Verify the connection is working by pinging the board:
+
+.. code-block:: console
+
+	ping 2001:db8::1
+
 This sample code supports both static and dynamic (DHCPv4) IP addresses that
 can be defined in the project configuration file:
 
