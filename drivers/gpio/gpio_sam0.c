@@ -4,13 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "gpio_utils.h"
-#include <device.h>
-#include <errno.h>
 #include <gpio.h>
-#include <init.h>
-#include <kernel.h>
 #include <soc.h>
+
+#include "gpio_utils.h"
 
 struct gpio_sam0_config {
 	PortGroup *regs;
