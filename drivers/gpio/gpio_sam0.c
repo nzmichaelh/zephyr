@@ -175,7 +175,7 @@ static int gpio_sam0_read(struct device *dev, int access_op, u32_t pin,
 static int gpio_sam0_manage_callback(struct device *dev,
 				     struct gpio_callback *callback, bool set)
 {
-	struct gpio_sam0_data *data = port->driver_data;
+	struct gpio_sam0_data *data = dev->driver_data;
 
 	_gpio_manage_callback(&data->cb, callback, set);
 
@@ -185,7 +185,7 @@ static int gpio_sam0_manage_callback(struct device *dev,
 static int gpio_sam0_enable_callback(struct device *dev, int access_op,
 				     u32_t pin)
 {
-	struct gpio_sam0_data *data = port->driver_data;
+	struct gpio_sam0_data *data = dev->driver_data;
 
 	if (access_op != GPIO_ACCESS_BY_PIN) {
 		return -ENOTSUP;
@@ -199,7 +199,7 @@ static int gpio_sam0_enable_callback(struct device *dev, int access_op,
 static int gpio_sam0_disable_callback(struct device *dev, int access_op,
 				      u32_t pin)
 {
-	struct gpio_sam0_data *data = port->driver_data;
+	struct gpio_sam0_data *data = dev->driver_data;
 
 	if (access_op != GPIO_ACCESS_BY_PIN) {
 		return -ENOTSUP;
