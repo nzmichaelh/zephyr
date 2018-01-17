@@ -173,97 +173,106 @@ static void spi_sam0_fast_tx(SercomSpi *regs, const struct spi_buf *tx_buf)
 /* Fast path that reads into a buf */
 static void spi_sam0_fast_rx(SercomSpi *regs, struct spi_buf *rx_buf)
 {
-	u8_t *p = rx_buf->buf;
-	size_t len = rx_buf->len;
-
-	while (regs->INTFLAG.bit.RXC) {
-		(void)regs->DATA.reg;
-	}
+	const u8_t *tx = rx_buf->buf;
+	int len = rx_buf;
 
 	if (len <= 0) {
 		return;
 	}
 
-	/*
-	 * The code below interleaves the transmit of the next byte
-	 * with the receive of the next.  The code is equivalent to:
-	 *
-	 * Transmit byte 0
-	 * Loop:
-	 * - Transmit byte n+1
-	 * - Receive byte n
-	 */
+	/* See the comment in spi_sam0_fast_txrx re: interleaving. */
 
-	/* Load the first outgoing byte */
-	while (!regs->INTFLAG.bit.DRE) {
+	/* Ensure transmit is idle */
+	while (!regs->INTFLAG.bit.TXC) {
 	}
 
+	/* Flush the receive buffer */
+	while (regs->INTFLAG.bit.RXC) {
+		(void)regs->DATA.reg;
+	}
+
+	/* Write the first byte */
 	regs->DATA.reg = 0;
+	len--;
 
 	while (len) {
-		if (len != 0) {
-			while (!regs->INTFLAG.bit.DRE) {
-			}
-
-			regs->DATA.reg = 0;
+		/* Load byte N+1 into the transmit register */
+		while (!regs->INTFLAG.bit.DRE) {
 		}
 
-		/*
-		 * Decrement len while waiting for the transfer to
-		 * complete.
-		 */
+		regs->DATA.reg = 0;
 		len--;
 
+		/* Read byte N+0 from the receive register */
 		while (!regs->INTFLAG.bit.RXC) {
 		}
 
-		*p++ = regs->DATA.reg;
+		*rx++ = regs->DATA.reg;
 	}
 
-	/* Note that all transmits are complete and the RX buf is empty */
+	/* Read the final incoming byte */
+	while (!regs->INTFLAG.bit.RXC) {
+	}
+
+	*rx = regs->DATA.reg;
 }
 
 /* Fast path that writes and reads bufs of the same length */
 static void spi_sam0_fast_txrx(SercomSpi *regs, const struct spi_buf *tx_buf,
 			       struct spi_buf *rx_buf)
 {
-	const u8_t *psrc = tx_buf->buf;
-	u8_t *p = rx_buf->buf;
+	const u8_t *tx = tx_buf->buf;
+	const u8_t *txend = tx_buf->buf + tx_buf->len;
+	u8_t *rx = rx_buf->buf;
 	size_t len = rx_buf->len;
-
-	while (regs->INTFLAG.bit.RXC) {
-		(void)regs->DATA.reg;
-	}
 
 	if (len <= 0) {
 		return;
 	}
 
-	/* See the comment in spi_sam0_fast_rx re: interleaving. */
+	/*
+	 * The code below interleaves the transmit writes with the
+	 * receive reads to keep the bus fully utilised.  The code is
+	 * equivalent to:
+	 *
+	 * Transmit byte 0
+	 * Loop:
+	 * - Transmit byte n+1
+	 * - Receive byte n
+	 * Receive the final byte
+	 */
 
-	/* Load the first outgoing byte */
-	while (!regs->INTFLAG.bit.DRE) {
+	/* Ensure transmit is idle */
+	while (!regs->INTFLAG.bit.TXC) {
 	}
 
-	regs->DATA.reg = *psrc++;
+	/* Flush the receive buffer */
+	while (regs->INTFLAG.bit.RXC) {
+		(void)regs->DATA.reg;
+	}
 
-	while (len) {
-		if (len != 0) {
-			while (!regs->INTFLAG.bit.DRE) {
-			}
+	/* Write the first byte */
+	regs->DATA.reg = *tx++;
 
-			regs->DATA.reg = *psrc++;
+	while (tx != txend) {
+		/* Load byte N+1 into the transmit register */
+		while (!regs->INTFLAG.bit.DRE) {
 		}
 
-		len--;
+		regs->DATA.reg = *tx++;
 
+		/* Read byte N+0 from the receive register */
 		while (!regs->INTFLAG.bit.RXC) {
 		}
 
-		*p++ = regs->DATA.reg;
+		*rx++ = regs->DATA.reg;
 	}
 
-	/* Note that all transmits are complete and the RX buf is empty */
+	/* Read the final incoming byte */
+	while (!regs->INTFLAG.bit.RXC) {
+	}
+
+	*rx = regs->DATA.reg;
 }
 
 /* Finish any ongoing writes and drop any remaining read data */
