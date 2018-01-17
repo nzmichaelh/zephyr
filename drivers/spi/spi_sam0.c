@@ -173,8 +173,8 @@ static void spi_sam0_fast_tx(SercomSpi *regs, const struct spi_buf *tx_buf)
 /* Fast path that reads into a buf */
 static void spi_sam0_fast_rx(SercomSpi *regs, struct spi_buf *rx_buf)
 {
-	const u8_t *tx = rx_buf->buf;
-	int len = rx_buf;
+	u8_t *rx = rx_buf->buf;
+	int len = rx_buf->len;
 
 	if (len <= 0) {
 		return;
