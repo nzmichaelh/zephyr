@@ -1,0 +1,8 @@
+# Kconfig - Sensebender Gateway board configuration
+#
+# Copyright (c) 2018 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_MYSENSORS_GW
+	bool "Sensebender Gateway"
+	depends on SOC_PART_NUMBER_SAMD21G18A
