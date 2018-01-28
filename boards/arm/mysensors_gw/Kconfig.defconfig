@@ -1,0 +1,11 @@
+# Kconfig - Sensebender Gateway board configuration
+#
+# Copyright (c) 2018 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_MYSENSORS_GW
+
+config BOARD
+	default mysensors_gw
+
+endif # BOARD_MYSENSORS_GW
