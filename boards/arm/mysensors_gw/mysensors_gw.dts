@@ -12,14 +12,14 @@
 	compatible = "mysensors,gw", "atmel,samd21g18a", "atmel,samd21";
 
 	chosen {
-		zephyr,console = &sercom2;
+		zephyr,console = &sercom0;
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &app_partition;
 	};
 };
 
-&sercom2 {
+&sercom0 {
 	status = "ok";
 	current-speed = <115200>;
 };
