@@ -18,13 +18,18 @@
 	};
 };
 
+&sercom0 {
+	status = "ok";
+	current-speed = <115200>;
+};
+
 &sercom5 {
 	status = "ok";
 	current-speed = <115200>;
 };
-&sercom0 {
+
+&spi4 {
 	status = "ok";
-	current-speed = <115200>;
 };
 
 &flash0 {

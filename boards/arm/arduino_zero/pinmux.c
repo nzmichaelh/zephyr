@@ -39,6 +39,29 @@ static int board_pinmux_init(struct device *dev)
 #error Pin mapping is not configured
 #endif
 
+#if CONFIG_SPI_SAM0_SERCOM4_BASE_ADDRESS
+	/* SPI SERCOM4 on MISO=PB12/pad 0, MOSI=PB10/pad 2, SCK=PB11/pad 3 */
+	pinmux_pin_set(muxb, 12, PINMUX_FUNC_C);
+	pinmux_pin_set(muxb, 10, PINMUX_FUNC_D);
+	pinmux_pin_set(muxb, 11, PINMUX_FUNC_D);
+#endif
+
+#if CONFIG_SPI_SAM0_SERCOM0_BASE_ADDRESS
+#error Pin mapping is not configured
+#endif
+#if CONFIG_SPI_SAM0_SERCOM1_BASE_ADDRESS
+#error Pin mapping is not configured
+#endif
+#if CONFIG_SPI_SAM0_SERCOM2_BASE_ADDRESS
+#error Pin mapping is not configured
+#endif
+#if CONFIG_SPI_SAM0_SERCOM3_BASE_ADDRESS
+#error Pin mapping is not configured
+#endif
+#if CONFIG_SPI_SAM0_SERCOM5_BASE_ADDRESS
+#error Pin mapping is not configured
+#endif
+
 	return 0;
 }
 
