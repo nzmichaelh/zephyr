@@ -22,9 +22,14 @@
 	status = "ok";
 	current-speed = <115200>;
 };
+
 &sercom0 {
 	status = "ok";
 	current-speed = <115200>;
+};
+
+&spi4 {
+	status = "ok";
 };
 
 &flash0 {

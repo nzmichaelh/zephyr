@@ -77,7 +77,7 @@ struct spi_cs_control spi_cs = {
 
 #elif defined(CONFIG_BOARD_ARDUINO_ZERO)
 
-#define SPI_DRV_NAME CONFIG_SPI_4_NAME
+#define SPI_DRV_NAME CONFIG_SPI_SAM0_SERCOM4_LABEL
 #define SPI_SLAVE 0
 #define MIN_FREQ 500000
 
