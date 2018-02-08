@@ -12,6 +12,8 @@
 #include <gpio.h>
 #include <misc/byteorder.h>
 #include <spi.h>
+#include <crc7.h>
+#include <crc16.h>
 
 #define SDHC_SECTOR_SIZE 512
 #define SDHC_CMD_SIZE 6
@@ -141,48 +143,7 @@ static const struct sdhc_flag_map sdhc_data_response_flags[] = {
 	{0, EPROTO},
 };
 
-static u8_t sdhc_crc7(u8_t seed, const u8_t *src, size_t len)
-{
-	while (len--) {
-		u8_t ch = *src++;
-		u8_t d0 = ch & 1;
-
-		u8_t e = seed ^ (ch >> 1);
-
-		u8_t e345 = (e >> 3) & 7;
-		u8_t e01 = e & 3;
-		u8_t e6 = (e >> 6) & 1;
-		u8_t e2 = (e >> 2) & 1;
-
-		u8_t t = e345 ^ (e01 << 1) ^ d0;
-
-		u8_t t1 = t ^ (t << 3);
-		u8_t t2 = e6 ^ (e2 << 3) ^ ((e6 ^ e2) << 6);
-		u8_t t3 = e345 << 4;
-
-		seed = t1 ^ t2 ^ t3;
-	}
-
-	return seed;
-}
-
 static u8_t sdhc_crc7_finish(u8_t crc) { return (crc << 1) | 1; }
-
-static u16_t sdhc_crc16(u16_t seed, const u8_t *src, size_t len)
-{
-	/* Bytewise CRC-CCITT.	249 us per 512 bytes on a 48 MHz
-	 * Cortex-M0+.
-	 */
-	while (len--) {
-		seed = (seed >> 8) | (seed << 8);
-		seed ^= *src++;
-		seed ^= (seed & 0xff) >> 4;
-		seed ^= seed << 12;
-		seed ^= (seed & 0xff) << 5;
-	}
-
-	return seed;
-}
 
 /* Traces card traffic for SYS_LOG_LEVEL_DEBUG */
 static int sdhc_trace(struct sdhc_data *data, int dir, int err,
@@ -381,7 +342,7 @@ static int sdhc_tx_cmd(struct sdhc_data *data, u8_t cmd, u32_t payload)
 	buf[0] = SDHC_TX | (cmd & ~SDHC_START);
 	sys_put_be32(payload, &buf[1]);
 	buf[SDHC_CMD_BODY_SIZE] =
-		sdhc_crc7_finish(sdhc_crc7(0, buf, SDHC_CMD_BODY_SIZE));
+		(crc7(0, buf, SDHC_CMD_BODY_SIZE) << 1) | 1;
 
 	return sdhc_tx(data, buf, sizeof(buf));
 }
@@ -623,7 +584,7 @@ static int sdhc_rx_block(struct sdhc_data *data, u8_t *buf, int len)
 		return err;
 	}
 
-	if (sys_get_be16(crc) != sdhc_crc16(0, buf, len)) {
+	if (sys_get_be16(crc) != crc16_itu_t(0, buf, len)) {
 		/* Bad CRC */
 		return -EILSEQ;
 	}
@@ -651,7 +612,7 @@ static int sdhc_tx_block(struct sdhc_data *data, u8_t *send, int len)
 	}
 
 	/* Build and write the trailing CRC */
-	sys_put_be16(sdhc_crc16(0, send, len), buf);
+	sys_put_be16(crc16_itu_t(0, send, len), buf);
 
 	err = sdhc_tx(data, buf, sizeof(buf));
 	if (err != 0) {
