@@ -143,8 +143,6 @@ static const struct sdhc_flag_map sdhc_data_response_flags[] = {
 	{0, EPROTO},
 };
 
-static u8_t sdhc_crc7_finish(u8_t crc) { return (crc << 1) | 1; }
-
 /* Traces card traffic for SYS_LOG_LEVEL_DEBUG */
 static int sdhc_trace(struct sdhc_data *data, int dir, int err,
 		      const u8_t *buf, int len)
@@ -873,16 +871,16 @@ static int sdhc_init(struct device *dev)
 {
 	struct sdhc_data *data = dev->driver_data;
 
-	data->cfg.dev = device_get_binding(CONFIG_SPI_0_NAME);
+	data->cfg.dev = device_get_binding(CONFIG_DISK_SDHC_0_SPI_PORT);
 	__ASSERT_NO_MSG(data->cfg.dev != NULL);
 
 	data->cfg.frequency = SDHC_INITIAL_SPEED;
 	data->cfg.operation = SPI_WORD_SET(8) | SPI_HOLD_ON_CS;
 
-	data->cs = device_get_binding(CONFIG_SPI_0_CS_GPIO_PORT);
+	data->cs = device_get_binding(CONFIG_DISK_SDHC_0_CS_PORT);
 	__ASSERT_NO_MSG(data->cs != NULL);
 
-	data->pin = CONFIG_SPI_0_CS_GPIO_PIN;
+	data->pin = CONFIG_DISK_SDHC_0_CS_PIN;
 
 	return gpio_pin_configure(data->cs, data->pin, GPIO_DIR_OUT);
 }
@@ -953,9 +951,6 @@ int disk_access_ioctl(u8_t cmd, void *buf)
 		break;
 	case DISK_IOCTL_GET_ERASE_BLOCK_SZ:
 		*(u32_t *)buf = SDHC_SECTOR_SIZE;
-		break;
-	case DISK_IOCTL_GET_DISK_SIZE:
-		*(u32_t *)buf = data->sector_count * SDHC_SECTOR_SIZE;
 		break;
 	default:
 		return -EINVAL;
