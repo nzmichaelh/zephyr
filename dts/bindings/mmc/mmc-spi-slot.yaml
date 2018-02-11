@@ -1,0 +1,25 @@
+#
+# Copyright (c) 2018, I-SENSE group of ICCS
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+---
+title: MMC/SD/SDIO slot directly connected to a SPI bus
+id: zephyr,mmc-spi-slot
+version: 0.1
+
+description: MMC/SD/SDIO slot directly connected to a SPI bus
+
+inherits:
+    !include spi-device.yaml
+
+properties:
+    compatible:
+      constraint: "zephyr,mmc-spi-slot"
+
+    gpios:
+      type: array
+      category: optional
+      description: pinmux information for CS
+      generation: structures
+...
