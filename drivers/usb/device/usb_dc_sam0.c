@@ -9,7 +9,6 @@
 #include <logging/sys_log.h>
 
 #include <drivers/usb/usb_dc.h>
-#include <qlog.h>
 #include <soc.h>
 #include <string.h>
 
@@ -36,9 +35,6 @@ struct usb_sam0_data {
 
 static struct usb_sam0_data usb_sam0_data_0;
 
-static const struct soc_gpio_pin usb_sam0_dm_pin = PIN_USB_SAM0_DM;
-static const struct soc_gpio_pin usb_sam0_dp_pin = PIN_USB_SAM0_DP;
-
 static struct usb_sam0_data *usb_sam0_get_data(void)
 {
 	return &usb_sam0_data_0;
@@ -50,8 +46,6 @@ static void usb_sam0_ep_isr(u8_t ep)
 	UsbDevice *regs = &USB->DEVICE;
 	UsbDeviceEndpoint *endpoint = &regs->DeviceEndpoint[ep];
 	u32_t intflag = endpoint->EPINTFLAG.reg;
-
-	QLOG2("ep=%x intflag=0x%x", ep, intflag);
 
 	endpoint->EPINTFLAG.reg = intflag;
 
@@ -67,7 +61,6 @@ static void usb_sam0_ep_isr(u8_t ep)
 		data->ep_cb[1][ep](ep | USB_SAM0_IN_EP, USB_DC_EP_DATA_IN);
 
 		if (data->addr != 0) {
-			QLOG("Applying new addr");
 			regs->DADD.reg = data->addr;
 			data->addr = 0;
 		}
@@ -167,10 +160,6 @@ int usb_dc_attach(void)
 	while (GCLK->STATUS.bit.SYNCBUSY) {
 	}
 
-	/* Connect pins to the peripheral */
-	soc_gpio_configure(&usb_sam0_dm_pin);
-	soc_gpio_configure(&usb_sam0_dp_pin);
-
 	/* Configure */
 	regs->CTRLA.bit.SWRST = 1;
 	usb_sam0_wait_syncbusy();
@@ -255,8 +244,6 @@ int usb_dc_ep_configure(const struct usb_dc_ep_cfg_data *const cfg)
 	UsbDeviceDescriptor *desc = &data->descriptors[ep];
 	int type;
 	int size;
-
-	QLOG2("addr=0x%x type=%d", cfg->ep_addr, cfg->ep_type);
 
 	switch (cfg->ep_type) {
 	case USB_DC_EP_CONTROL:
@@ -378,8 +365,6 @@ int usb_dc_ep_enable(const u8_t ep)
 	u8_t ep_num = ep & ~USB_EP_DIR_MASK;
 	UsbDeviceEndpoint *endpoint = &regs->DeviceEndpoint[ep_num];
 
-	QLOG1("ep=%x", ep);
-
 	if (for_in) {
 		endpoint->EPSTATUSCLR.bit.BK1RDY = 1;
 	} else {
@@ -402,11 +387,8 @@ int usb_dc_ep_write(u8_t ep, const u8_t *buf, u32_t len, u32_t *ret_bytes)
 	UsbDeviceDescriptor *desc = &data->descriptors[ep_num];
 	u32_t addr = desc->DeviceDescBank[1].ADDR.reg;
 
-	QLOG2("ep=%x len=%d", ep, len);
-
 	if (endpoint->EPSTATUS.bit.BK1RDY) {
 		/* Write in progress, drop */
-		QLOG("busy");
 		return -EAGAIN;
 	}
 
@@ -443,7 +425,6 @@ int usb_dc_ep_read_ex(u8_t ep, u8_t *buf, u32_t max_data_len,
 	if (buf == NULL) {
 		data->out_at = 0;
 
-		QLOG1("in_buf=%d", bytes);
 		if (read_bytes != NULL) {
 			*read_bytes = bytes;
 		}
@@ -460,7 +441,6 @@ int usb_dc_ep_read_ex(u8_t ep, u8_t *buf, u32_t max_data_len,
 	}
 
 	if (take == remain) {
-		QLOG2("in_buf=%d took=%d (all)", bytes, take);
 		if (!wait) {
 			endpoint->EPSTATUSCLR.bit.BK0RDY = 1;
 			data->out_at = 0;

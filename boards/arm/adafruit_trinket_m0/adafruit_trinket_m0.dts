@@ -21,7 +21,7 @@
 
 &sercom0 {
 	status = "ok";
-	current-speed = <115200>;
+	current-speed = <460800>;
 };
 
 &sercom2 {

@@ -53,7 +53,6 @@
 #endif
 
 /* definitions */
-
 #define SYS_LOG_LEVEL CONFIG_SYS_LOG_USB_CDC_ACM_LEVEL
 #include <logging/sys_log.h>
 
@@ -130,6 +129,9 @@ int cdc_acm_class_handle_req(struct usb_setup_packet *pSetup,
 			    dev_data->line_coding.bCharFormat,
 			    dev_data->line_coding.bParityType,
 			    dev_data->line_coding.bDataBits);
+		if (sys_le32_to_cpu(dev_data->line_coding.dwDTERate) == 1200) {
+			sys_reset_to_bootloader();
+		}
 		break;
 
 	case SET_CONTROL_LINE_STATE:
@@ -664,6 +666,8 @@ static int cdc_acm_line_ctrl_set(struct device *dev,
 				 u32_t ctrl, u32_t val)
 {
 	struct cdc_acm_dev_data_t * const dev_data = DEV_DATA(dev);
+
+	SYS_LOG_INF("ctrl=%x val=%x", ctrl, val);
 
 	switch (ctrl) {
 	case LINE_CTRL_BAUD_RATE:

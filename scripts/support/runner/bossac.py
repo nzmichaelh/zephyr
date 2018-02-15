@@ -4,6 +4,7 @@
 
 '''bossac-specific runner (flash only) for Atmel SAM microcontrollers.'''
 
+import time
 import platform
 
 from .core import ZephyrBinaryRunner, RunnerCaps
@@ -53,4 +54,5 @@ class BossacBinaryRunner(ZephyrBinaryRunner):
                      '-b', self.bin_name]
 
         self.check_call(cmd_stty)
+        time.sleep(1)
         self.check_call(cmd_flash)
