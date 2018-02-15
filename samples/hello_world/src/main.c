@@ -27,21 +27,52 @@ enum {
 static volatile u8_t flags_;
 
 struct buf {
-	u8_t data[70];
-	u8_t head;
-	u8_t tail;
+	u8_t data[500];
+	u16_t head;
+	u16_t tail;
 };
 
-static struct buf bufs[30];
-static volatile int rx_buf;
-static int tx_buf;
-
-static int cmd_reboot(int argc, char *argv[])
+static u8_t *buf_tail(struct buf *buf, int *free)
 {
-	(&__kernel_ram_end)[-1] = DBL_TAP_MAGIC;
-	sys_reboot(0);
-	return 0;
+	if (buf->tail >= buf->head) {
+		*free = sizeof(buf->data) - buf->tail;
+	} else {
+		*free = buf->head - buf->tail;
+	}
+	return &buf->data[buf->tail];
 }
+
+static void buf_add(struct buf *buf, int count)
+{
+	int tail = buf->tail + count;
+
+	if (tail >= sizeof(buf->data)) {
+		tail -= sizeof(buf->data);
+	}
+	buf->tail = tail;
+}
+
+static u8_t *buf_head(struct buf *buf, int *avail)
+{
+	if (buf->head <= buf->tail) {
+		*avail = buf->tail - buf->head;
+	} else {
+		*avail = sizeof(buf->data) - buf->head;
+	}
+	return &buf->data[buf->head];
+}
+
+static void buf_discard(struct buf *buf, int count)
+{
+	int head = buf->head + count;
+
+	if (head >= sizeof(buf->data)) {
+		head -= sizeof(buf->data);
+	}
+	buf->head = head;
+}
+
+static struct buf rx_buf;
 
 static void do_reset(struct k_work *work)
 {
@@ -56,49 +87,40 @@ void sys_reset_to_bootloader(void)
 	k_delayed_work_submit(&reset_work, 100);
 }
 
-static void set_led(struct device *dev, int h)
-{
-	struct led_rgb rgb;
-
-	hsv2rgb(h, 255, 255, &rgb);
-	led_strip_update_rgb(dev, &rgb, 1);
-}
-
 static void on_uart(struct device *dev)
 {
-	int rx = rx_buf;
+	int avail;
+	u8_t *p;
 
 	while (uart_irq_rx_ready(dev)) {
-		struct buf *b = &bufs[rx];
-		int free = sizeof(b->data) - b->head;
-		int got = uart_fifo_read(dev, b->data, free);
+		int got;
+		int free;
+
+		p = buf_tail(&rx_buf, &free);
+		got = uart_fifo_read(dev, p, free);
 
 		flags_ |= FLAG_CONNECTED;
 
-		if (got > 0) {
-			flags_ |= FLAG_RX;
-			b->head += got;
-			if (b->head >= sizeof(b->data)) {
-				if (++rx >= ARRAY_SIZE(bufs)) {
-					rx = 0;
-				}
-				bufs[rx].head = 0;
-			}
-		}
 		if (got < 0) {
 			printk("err=%d\n", got);
+		} else if (got > 0) {
+			flags_ |= FLAG_RX;
+			buf_add(&rx_buf, got);
 		}
-		if (got < sizeof(free)) {
+		if (got < free) {
 			break;
 		}
 	}
-	if (bufs[rx].head != 0) {
-		if (++rx >= ARRAY_SIZE(bufs)) {
-			rx = 0;
+	p = buf_head(&rx_buf, &avail);
+	if (avail > 0) {
+		/* Try to write */
+		int wrote = uart_fifo_fill(dev, p, avail);
+
+		if (wrote > 0) {
+			flags_ |= FLAG_TX;
+			buf_discard(&rx_buf, wrote);
 		}
-		bufs[rx].head = 0;
 	}
-	rx_buf = rx;
 }
 
 void main(void)
@@ -114,9 +136,9 @@ void main(void)
 
 	uart_irq_callback_set(cdc, on_uart);
 	uart_irq_rx_enable(cdc);
+	uart_irq_tx_enable(cdc);
 
 	for (;;) {
-		bool any = false;
 		struct led_rgb rgb = { 0 };
 		u8_t flags = flags_;
 
@@ -133,19 +155,6 @@ void main(void)
 		led_strip_update_rgb(strip, &rgb, 1);
 		mask ^= cycle;
 
-		while (rx_buf != tx_buf) {
-			struct buf *b = &bufs[tx_buf];
-
-			any = true;
-			printk("rx_buf=%d got=%d\n", tx_buf, b->head);
-
-			if (++tx_buf >= ARRAY_SIZE(bufs)) {
-				tx_buf = 0;
-			}
-		}
-		if (any) {
-			printk("\n");
-		}
 		k_sleep(100);
 	}
 }

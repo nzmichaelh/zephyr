@@ -406,6 +406,7 @@ static int cdc_acm_fifo_fill(struct device *dev,
 {
 	struct cdc_acm_dev_data_t * const dev_data = DEV_DATA(dev);
 	u32_t bytes_written = 0;
+	int err;
 
 	if (dev_data->usb_status != USB_DC_CONFIGURED) {
 		return 0;
@@ -424,8 +425,11 @@ static int cdc_acm_fifo_fill(struct device *dev,
 	len = len > sizeof(u32_t) ? sizeof(u32_t) : len;
 #endif
 
-	usb_write(CONFIG_CDC_ACM_IN_EP_ADDR, tx_data, len, &bytes_written);
-
+	err = usb_write(
+		CONFIG_CDC_ACM_IN_EP_ADDR, tx_data, len, &bytes_written);
+	if (err < 0) {
+		return err;
+	}
 	return bytes_written;
 }
 
