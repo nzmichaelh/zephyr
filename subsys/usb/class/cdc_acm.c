@@ -129,9 +129,6 @@ int cdc_acm_class_handle_req(struct usb_setup_packet *pSetup,
 			    dev_data->line_coding.bCharFormat,
 			    dev_data->line_coding.bParityType,
 			    dev_data->line_coding.bDataBits);
-		if (sys_le32_to_cpu(dev_data->line_coding.dwDTERate) == 1200) {
-			sys_reset_to_bootloader();
-		}
 		break;
 
 	case SET_CONTROL_LINE_STATE:
