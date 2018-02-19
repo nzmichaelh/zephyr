@@ -55,6 +55,7 @@ static int uart_sam0_set_baudrate(SercomUsart *const usart, u32_t baudrate,
 {
 	u64_t tmp;
 	u16_t baud;
+	int enabled = usart->CTRLA.bit.ENABLE;
 
 	tmp = (u64_t)baudrate << 20;
 	tmp = (tmp + (clk_freq_hz >> 1)) / clk_freq_hz;
@@ -65,8 +66,11 @@ static int uart_sam0_set_baudrate(SercomUsart *const usart, u32_t baudrate,
 	}
 
 	baud = 65536 - (u16_t)tmp;
+
+	usart->CTRLA.bit.ENABLE = 0;
 	usart->BAUD.reg = baud;
 	wait_synchronization(usart);
+	usart->CTRLA.bit.ENABLE = enabled;
 
 	return 0;
 }
@@ -248,6 +252,29 @@ static void uart_sam0_irq_callback_set(struct device *dev,
 }
 #endif
 
+#ifdef CONFIG_UART_LINE_CTRL
+static int uart_sam0_line_ctrl_set(struct device *dev, u32_t ctrl, u32_t val)
+{
+	const struct uart_sam0_dev_cfg *cfg = DEV_CFG(dev);
+	SercomUsart *regs = cfg->regs;
+
+	switch (ctrl) {
+	case LINE_CTRL_BAUD_RATE:
+		return uart_sam0_set_baudrate(
+			regs, val, SOC_ATMEL_SAM0_GCLK0_FREQ_HZ);
+		return 0;
+
+	default:
+		return -ENOTSUP;
+	}
+}
+
+static int uart_sam0_line_ctrl_get(struct device *dev, u32_t ctrl, u32_t *val)
+{
+	return -ENOTSUP;
+}
+#endif
+
 static const struct uart_driver_api uart_sam0_driver_api = {
 	.poll_in = uart_sam0_poll_in,
 	.poll_out = uart_sam0_poll_out,
@@ -263,6 +290,10 @@ static const struct uart_driver_api uart_sam0_driver_api = {
 	.irq_is_pending = uart_sam0_irq_is_pending,
 	.irq_update = uart_sam0_irq_update,
 	.irq_callback_set = uart_sam0_irq_callback_set,
+#endif
+#ifdef CONFIG_UART_LINE_CTRL
+	.line_ctrl_set = uart_sam0_line_ctrl_set,
+	.line_ctrl_get = uart_sam0_line_ctrl_get,
 #endif
 };
 
