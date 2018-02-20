@@ -26,7 +26,9 @@
 #define DMA_DEVICE_NAME CONFIG_DMA_0_NAME
 #define RX_BUFF_SIZE (48)
 
+__aligned(4)
 static const char tx_data[] = "It is harder to be kind than to be wise";
+__aligned(4)
 static char rx_data[RX_BUFF_SIZE] = { 0 };
 
 static void test_done(struct device *dev, u32_t id, int error_code)
