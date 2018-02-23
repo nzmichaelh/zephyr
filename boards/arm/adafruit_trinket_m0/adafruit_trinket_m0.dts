@@ -32,6 +32,15 @@
 /* Drives the on-board DotStar LED */
 &spi1 {
 	status = "ok";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	led1: apa102@0 {
+		compatible = "apa,apa102";
+		reg = <0>;
+		spi-max-frequency = <24000000>;
+		label = "LED1";
+	};
 };
 
 &flash0 {
