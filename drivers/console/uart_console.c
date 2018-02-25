@@ -541,11 +541,11 @@ void uart_console_isr(struct device *unused)
 			default:
 				break;
 			}
-		}
-
-		/* Ignore characters if there's no more buffer space */
-		if (cur + end < sizeof(cmd->line) - 1) {
-			insert_char(&cmd->line[cur++], byte, end);
+		} else {
+			/* Ignore characters if there's no more buffer space */
+			if (cur + end < sizeof(cmd->line) - 1) {
+				insert_char(&cmd->line[cur++], byte, end);
+			}
 		}
 	}
 }
