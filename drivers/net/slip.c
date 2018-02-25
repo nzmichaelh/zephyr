@@ -44,7 +44,7 @@ struct slip_context {
 	bool first;		/* SLIP received it's byte or not after
 				 * driver initialization or SLIP_END byte.
 				 */
-	u8_t buf[1];		/* SLIP data is read into this buf */
+	u8_t buf[32];		/* SLIP data is read into this buf */
 	struct net_pkt *rx;	/* and then placed into this net_pkt */
 	struct net_buf *last;	/* Pointer to last fragment in the list */
 	u8_t *ptr;		/* Where in net_pkt to add data */
@@ -211,7 +211,7 @@ static int slip_send(struct net_if *iface, struct net_pkt *pkt)
 #if SYS_LOG_LEVEL >= SYS_LOG_LEVEL_DEBUG
 		SYS_LOG_DBG("sent data %d bytes",
 			    frag->len + net_pkt_ll_reserve(pkt));
-		if (frag->len + ll_reserve) {
+		if (frag->len + net_pkt_ll_reserve(pkt)) {
 			char msg[8 + 1];
 
 			snprintf(msg, sizeof(msg), "<slip %2d", frag_count++);
