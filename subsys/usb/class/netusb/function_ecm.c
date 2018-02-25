@@ -85,28 +85,6 @@ static void ecm_bulk_out(u8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 	 */
 	usb_read(ep, buffer, len, NULL);
 
-	/*
-	 * Zero packet is send to mark frame delimeter
-	 */
-	if (len == 1 && !buffer[0]) {
-		SYS_LOG_DBG("Got frame delimeter, ECM pkt received, len %u",
-			    net_pkt_get_len(in_pkt));
-
-		if (skip) {
-			SYS_LOG_WRN("End skipping fragments");
-			skip = false;
-
-			return;
-		}
-
-		net_hexdump_frags(">", in_pkt);
-
-		netusb_recv(in_pkt);
-		in_pkt = NULL;
-
-		return;
-	}
-
 	if (skip) {
 		SYS_LOG_WRN("Skipping %u bytes", len);
 

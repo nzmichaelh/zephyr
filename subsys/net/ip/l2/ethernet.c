@@ -83,7 +83,7 @@ static inline void ethernet_update_length(struct net_if *iface,
 			NET_IPV6H_LEN;
 	}
 
-	if (len < NET_ETH_MINIMAL_FRAME_SIZE - sizeof(struct net_eth_hdr)) {
+	if (len < net_buf_frags_len(pkt->frags)) {
 		struct net_buf *frag;
 
 		for (frag = pkt->frags; frag; frag = frag->frags) {
