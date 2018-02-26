@@ -21,6 +21,7 @@
 #include <usb_common.h>
 
 #include <net/net_pkt.h>
+#include <net/ethernet.h>
 
 #include "netusb.h"
 
@@ -58,6 +59,35 @@ static int ecm_class_handler(struct usb_setup_packet *setup, s32_t *len,
 static void ecm_int_in(u8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 {
 	SYS_LOG_DBG("EP 0x%x status %d", ep, ep_status);
+}
+
+/* Returns true if the given packet is long enough to hold the whole payload */
+static bool ecm_have_payload(struct net_pkt *pkt)
+{
+	struct net_eth_hdr *hdr = NET_ETH_HDR(pkt);
+	int len = net_pkt_get_len(pkt);
+	u8_t *ip_data = pkt->frags->data + sizeof(struct net_eth_hdr);
+	u16_t ip_len;
+
+	if (len < NET_IPV6H_LEN + sizeof(struct net_eth_hdr)) {
+		/* Too short to tell */
+		return false;
+	}
+
+	switch (ntohs(hdr->type)) {
+	case NET_ETH_PTYPE_IP:
+	case NET_ETH_PTYPE_ARP:
+		ip_len = sys_get_be16(((struct net_ipv4_hdr *)ip_data)->len);
+		break;
+	case NET_ETH_PTYPE_IPV6:
+		ip_len = sys_get_be16(((struct net_ipv6_hdr *)ip_data)->len);
+		break;
+	default:
+		SYS_LOG_DBG("Unknown hdr type 0x%04x", hdr->type);
+		return false;
+	}
+
+	return sizeof(struct net_eth_hdr) + ip_len <= len;
 }
 
 /* Host to device data out */
@@ -117,6 +147,16 @@ static void ecm_bulk_out(u8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 		net_pkt_frag_insert(pkt, buf);
 
 		in_pkt = pkt;
+	}
+
+	/* The ECM spec says that the end of a packet is marked by
+	 * a short frame.  If the packet is a multiple of the endpoint
+	 * size then the host should send a zero length packet.
+	 * Linux, however, sends a one byte packet instead.  Handle by
+	 * checking the IP header length and dropping the extra byte.
+	 */
+	if (len == 1 && ecm_have_payload(in_pkt)) {
+		len = 0;
 	}
 
 	if (!net_pkt_append_all(in_pkt, len, buffer, K_FOREVER)) {
