@@ -46,6 +46,7 @@ extern "C" {
 #elif CONFIG_FILE_SYSTEM_NFFS
 #include <fs/nffs_fs.h>
 #endif
+#include <fs/sfs.h>
 
 #ifdef __cplusplus
 }
