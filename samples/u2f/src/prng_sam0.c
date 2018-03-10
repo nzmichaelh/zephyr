@@ -8,10 +8,14 @@
 #define SYS_LOG_DOMAIN "prng"
 #include <logging/sys_log.h>
 
+#include <arch/arm/cortex_m/cmsis.h>
 #include <misc/byteorder.h>
 #include <net/buf.h>
 #include <string.h>
 #include <zephyr.h>
+
+#include <tinycrypt/constants.h>
+#include <tinycrypt/hmac_prng.h>
 
 #define SERIAL_0 0x0080A00C
 #define SERIAL_1 0x0080A040
@@ -19,38 +23,67 @@
 #define SERIAL_3 0x0080A048
 
 struct prng_data {
-	u32_t entropy[64 / 4];
+	struct tc_hmac_prng_struct prng;
+	u32_t entropy[17];
 	u8_t at;
 };
 
 static struct prng_data data;
 
-void prng_init(void)
+static void prng_add(u32_t ch)
 {
-	data.entropy[data.at++] = *(u32_t *)SERIAL_0;
-	data.entropy[data.at++] = *(u32_t *)SERIAL_1;
-	data.entropy[data.at++] = *(u32_t *)SERIAL_2;
-	data.entropy[data.at++] = *(u32_t *)SERIAL_3;
-	data.entropy[data.at++] = (u32_t)prng_init;
-}
-
-void prng_feed(void)
-{
-	data.entropy[data.at++] ^= k_uptime_get_32();
+	data.entropy[data.at++] = ch;
 	if (data.at >= ARRAY_SIZE(data.entropy)) {
 		data.at = 0;
 	}
 }
 
-int default_CSPRNG(u8_t *dest, unsigned int size)
+void prng_feed(void)
 {
-	dump_hex("entropy", data.entropy, sizeof(data.entropy));
+	prng_add(SysTick->VAL);
+	prng_add(k_uptime_get_32());
+}
 
-	for (; size >= sizeof(data.entropy); size -= sizeof(data.entropy)) {
-		memcpy(dest, data.entropy, sizeof(data.entropy));
-		dest += sizeof(data.entropy);
+int default_CSPRNG(u8_t *buf, unsigned int len)
+{
+	int err;
+
+	for (;;) {
+		err = tc_hmac_prng_generate(buf, len, &data.prng);
+		SYS_LOG_DBG("err=%d", err);
+
+		switch (err) {
+		case TC_CRYPTO_SUCCESS:
+			return err;
+		case TC_HMAC_PRNG_RESEED_REQ:
+			prng_feed();
+			dump_hex("entropy", data.entropy,
+				 sizeof(data.entropy));
+			err = tc_hmac_prng_reseed(
+				&data.prng, (u8_t *)data.entropy,
+				sizeof(data.entropy), NULL, 0);
+			if (err != TC_CRYPTO_SUCCESS) {
+				return err;
+			}
+			break;
+		default:
+			return TC_CRYPTO_FAIL;
+		}
 	}
-	memcpy(dest, data.entropy, size);
+}
 
-	return 1;
+int prng_init(void)
+{
+	u32_t personalization[] = {
+		*(u32_t *)SERIAL_0, *(u32_t *)SERIAL_1, *(u32_t *)SERIAL_2,
+		*(u32_t *)SERIAL_3, (u32_t)prng_init,
+	};
+	int err;
+
+	err = tc_hmac_prng_init(&data.prng, (u8_t *)personalization,
+				sizeof(personalization));
+	if (err != TC_CRYPTO_SUCCESS) {
+		return -EIO;
+	}
+	return 0;
 }
