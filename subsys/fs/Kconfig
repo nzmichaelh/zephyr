@@ -37,6 +37,16 @@ config FILE_SYSTEM_NFFS
 	  Note: NFFS requires 1-byte unaligned access to flash thus it
 	  will not work on devices that support only aligned flash access.
 
+config FILE_SYSTEM_SFS
+	bool "SFS flash filesystem"
+	help
+	  Enables SFS flash filesystem support.
+	  SFS is a small filesystem designed for saving limited size
+	  files in page based flash such as that often found in a SoC.
+	  It's best suited for applications that write up to a hundred
+	  small files of a similar size which are also similar
+	  to the flash page size.
+
 endchoice
 
 config FILE_SYSTEM_SHELL
