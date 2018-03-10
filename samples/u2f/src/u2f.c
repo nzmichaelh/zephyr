@@ -89,6 +89,32 @@ static const char attestation_der[] =
 	"\x88\x3b\x90\x89\xb8\x8d\x60\xd1\xd9\x79\x59\x02\xb3\x04"
 	"\x10\xdf";
 
+struct slice {
+	const u8_t *p;
+	int len;
+};
+
+const u8_t *get_p(struct slice *s, int offset, int len)
+{
+	if (offset < 0 || len < 0) {
+		return NULL;
+	}
+	if (offset + len > s->len) {
+		return NULL;
+	}
+	return s->p + offset;
+}
+
+int get_u8(struct slice *s, int offset)
+{
+	const u8_t *p = get_p(s, offset, 1);
+
+	if (p == NULL) {
+		return -EINVAL;
+	}
+	return *p;
+}
+
 void dump_hex(const char *msg, const u8_t *buf, int len)
 {
 	printk("%s(%d): ", msg, len);
@@ -127,10 +153,24 @@ static void net_buf_add_x962(struct net_buf *resp, const u8_t *signature)
 	*len += net_buf_add_varint(resp, &signature[32], 32);
 }
 
-static int u2f_authenticate(int p1, u8_t *pc, int lc, int le,
+static int u2f_authenticate(int p1, struct slice *pc, int le,
 			       struct net_buf *resp)
 {
+	const u8_t *chal = get_p(pc, 0, 32);
+	const u8_t *app = get_p(pc, 32, 32);
+	int l = get_u8(pc, 64);
+	const u8_t *handle = get_p(pc, 65, l);
 	u8_t signature[64];
+
+	SYS_LOG_DBG("chal=%p app=%p l=%d handle=%p", chal, app, l, handle);
+
+	if (chal == NULL || app == NULL || l < 0 || handle == NULL) {
+		return -EINVAL;
+	}
+
+	dump_hex("chal", chal, 32);
+	dump_hex("app", app, 32);
+	dump_hex("handle", handle, l);
 
 	/* Add user presence */
 	net_buf_add_u8(resp, 1);
@@ -144,16 +184,16 @@ static int u2f_authenticate(int p1, u8_t *pc, int lc, int le,
 	return U2F_SW_NO_ERROR;
 }
 
-static int u2f_register(int p1, u8_t *pc, int lc, int le,
+static int u2f_register(int p1, struct slice *pc, int le,
 			   struct net_buf *resp)
 {
-	u8_t *chal = pc + 0;
-	u8_t *app = pc + 32;
+	const u8_t *chal = get_p(pc, 0, 32);
+	const u8_t *app = get_p(pc, 32, 32);
 	u8_t private[32];
 	u8_t ch;
 
-	if (lc != 64) {
-		SYS_LOG_ERR("lc=%d", lc);
+	if (pc->len != 64) {
+		SYS_LOG_ERR("lc=%d", pc->len);
 		return U2F_SW_WRONG_LENGTH;
 	}
 
@@ -233,7 +273,7 @@ int u2f_dispatch(struct net_buf *req, struct net_buf *resp)
 	u8_t p1;
 	u8_t p2;
 	u16_t lc = 0;
-	u8_t *pc;
+	struct slice pc;
 	u16_t le = 0;
 	int err;
 
@@ -256,10 +296,10 @@ int u2f_dispatch(struct net_buf *req, struct net_buf *resp)
 		return -EINVAL;
 	}
 
-	lc = net_buf_pull_be16(req);
-	pc = req->data;
-	req->data += lc;
-	req->len -= lc;
+	pc.len = net_buf_pull_be16(req);
+	pc.p = req->data;
+	req->data += pc.len;
+	req->len -= pc.len;
 
 	if (req->len > 0) {
 		le = net_buf_pull_be16(req);
@@ -268,10 +308,10 @@ int u2f_dispatch(struct net_buf *req, struct net_buf *resp)
 	SYS_LOG_DBG("ins=%d p1=%d p2=%d lc=%d le=%d", ins, p1, p2, lc, le);
 	switch (ins) {
 	case U2F_REGISTER:
-		err = u2f_register(p1, pc, lc, le, resp);
+		err = u2f_register(p1, &pc, le, resp);
 		break;
 	case U2F_AUTHENTICATE:
-		err = u2f_authenticate(p1, pc, lc, le, resp);
+		err = u2f_authenticate(p1, &pc, le, resp);
 		break;
 	default:
 		err = U2F_SW_INS_NOT_SUPPORTED;

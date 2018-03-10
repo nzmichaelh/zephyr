@@ -8,14 +8,17 @@
 #define SYS_LOG_DOMAIN "prng"
 #include <logging/sys_log.h>
 
-#include <arch/arm/cortex_m/cmsis.h>
 #include <misc/byteorder.h>
 #include <net/buf.h>
 #include <string.h>
 #include <zephyr.h>
+#include <device.h>
+#include <init.h>
 
 #include <tinycrypt/constants.h>
 #include <tinycrypt/hmac_prng.h>
+
+#include <arch/arm/cortex_m/cmsis.h>
 
 #define SERIAL_0 0x0080A00C
 #define SERIAL_1 0x0080A040
@@ -72,7 +75,7 @@ int default_CSPRNG(u8_t *buf, unsigned int len)
 	}
 }
 
-int prng_init(void)
+static int prng_init(struct device *dev)
 {
 	u32_t personalization[] = {
 		*(u32_t *)SERIAL_0, *(u32_t *)SERIAL_1, *(u32_t *)SERIAL_2,
@@ -87,3 +90,5 @@ int prng_init(void)
 	}
 	return 0;
 }
+
+SYS_INIT(prng_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);

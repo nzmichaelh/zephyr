@@ -12,6 +12,8 @@
 #include <net/buf.h>
 #include <string.h>
 #include <zephyr.h>
+#include <device.h>
+#include <init.h>
 
 #include <usb/class/usb_hid.h>
 #include <usb/usb_device.h>
@@ -321,7 +323,7 @@ static const struct hid_ops ops = {
 	.set_report = hid_set_report_cb,
 };
 
-void hid_init(void)
+static int hid_init(struct device *dev)
 {
 	k_fifo_init(&data.rx_q);
 	k_fifo_init(&data.tx_q);
@@ -330,5 +332,7 @@ void hid_init(void)
 
 	usb_hid_register_device(hid_report_desc, sizeof(hid_report_desc),
 				&ops);
-	usb_hid_init();
+	return usb_hid_init();
 }
+
+SYS_INIT(hid_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
