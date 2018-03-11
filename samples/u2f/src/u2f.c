@@ -43,6 +43,10 @@
 #define U2F_VENDOR_FIRST 0xc0
 #define U2F_VENDOR_LAST 0xff
 
+#define U2F_ERASE 0xc1
+#define U2F_SET_CERTIFICATE 0xc2
+#define U2F_SET_PRIVATE_KEY 0xc3
+
 /* U2F_CMD_REGISTER command defines */
 #define U2F_REGISTER_ID 0x05
 #define U2F_REGISTER_HASH_ID 0x00
@@ -61,41 +65,32 @@
 #define U2F_SW_WRONG_PAYLOAD 0x6a80
 #define U2F_SW_INSUFFICIENT_MEMORY 0x9210
 
-static const char attestation_key[] =
-	"\xf3\xfc\xcc\x0d\x00\xd8\x03\x19\x54\xf9"
-	"\x08\x64\xd4\x3c\x24\x7f\x4b\xf5\xf0\x66\x5c\x6b\x50\xcc"
-	"\x17\x74\x9a\x27\xd1\xcf\x76\x64";
-
-static const char attestation_der[] =
-	"\x30\x82\x01\x3c\x30\x81\xe4\xa0\x03\x02"
-	"\x01\x02\x02\x0a\x47\x90\x12\x80\x00\x11\x55\x95\x73\x52"
-	"\x30\x0a\x06\x08\x2a\x86\x48\xce\x3d\x04\x03\x02\x30\x17"
-	"\x31\x15\x30\x13\x06\x03\x55\x04\x03\x13\x0c\x47\x6e\x75"
-	"\x62\x62\x79\x20\x50\x69\x6c\x6f\x74\x30\x1e\x17\x0d\x31"
-	"\x32\x30\x38\x31\x34\x31\x38\x32\x39\x33\x32\x5a\x17\x0d"
-	"\x31\x33\x30\x38\x31\x34\x31\x38\x32\x39\x33\x32\x5a\x30"
-	"\x31\x31\x2f\x30\x2d\x06\x03\x55\x04\x03\x13\x26\x50\x69"
-	"\x6c\x6f\x74\x47\x6e\x75\x62\x62\x79\x2d\x30\x2e\x34\x2e"
-	"\x31\x2d\x34\x37\x39\x30\x31\x32\x38\x30\x30\x30\x31\x31"
-	"\x35\x35\x39\x35\x37\x33\x35\x32\x30\x59\x30\x13\x06\x07"
-	"\x2a\x86\x48\xce\x3d\x02\x01\x06\x08\x2a\x86\x48\xce\x3d"
-	"\x03\x01\x07\x03\x42\x00\x04\x8d\x61\x7e\x65\xc9\x50\x8e"
-	"\x64\xbc\xc5\x67\x3a\xc8\x2a\x67\x99\xda\x3c\x14\x46\x68"
-	"\x2c\x25\x8c\x46\x3f\xff\xdf\x58\xdf\xd2\xfa\x3e\x6c\x37"
-	"\x8b\x53\xd7\x95\xc4\xa4\xdf\xfb\x41\x99\xed\xd7\x86\x2f"
-	"\x23\xab\xaf\x02\x03\xb4\xb8\x91\x1b\xa0\x56\x99\x94\xe1"
-	"\x01\x30\x0a\x06\x08\x2a\x86\x48\xce\x3d\x04\x03\x02\x03"
-	"\x47\x00\x30\x44\x02\x20\x60\xcd\xb6\x06\x1e\x9c\x22\x26"
-	"\x2d\x1a\xac\x1d\x96\xd8\xc7\x08\x29\xb2\x36\x65\x31\xdd"
-	"\xa2\x68\x83\x2c\xb8\x36\xbc\xd3\x0d\xfa\x02\x20\x63\x1b"
-	"\x14\x59\xf0\x9e\x63\x30\x05\x57\x22\xc8\xd8\x9b\x7f\x48"
-	"\x88\x3b\x90\x89\xb8\x8d\x60\xd1\xd9\x79\x59\x02\xb3\x04"
-	"\x10\xdf";
+#define U2F_PRIVATE_KEY_NAME "/attest.pk"
+#define U2F_CERTIFICATE_NAME "/attest.der"
 
 struct slice {
 	const u8_t *p;
 	int len;
 };
+
+static u16_t u2f_map_err(int err)
+{
+	switch (err) {
+	case 0:
+		return U2F_SW_NO_ERROR;
+	case -EINVAL:
+		return U2F_SW_WRONG_DATA;
+	case -EPERM:
+		return U2F_SW_CONDITIONS_NOT_SATISFIED;
+	case -ENOENT:
+		return U2F_SW_INS_NOT_SUPPORTED;
+	case -ENOMEM:
+		return U2F_SW_INSUFFICIENT_MEMORY;
+	default:
+		SYS_LOG_DBG("err=%d", err);
+		return U2F_SW_WRONG_DATA;
+	}
+}
 
 const u8_t *get_p(struct slice *s, int offset, int len)
 {
@@ -156,14 +151,67 @@ static void net_buf_add_x962(struct net_buf *resp, const u8_t *signature)
 	*len += net_buf_add_varint(resp, &signature[32], 32);
 }
 
+static int u2f_write_file(const char *fname, struct slice *pc)
+{
+	fs_file_t fp;
+	int err;
+
+	err = fs_open(&fp, fname);
+	if (err != 0) {
+		SYS_LOG_ERR("fs_open err=%d", err);
+		return err;
+	}
+
+	err = fs_write(&fp, pc->p, pc->len);
+	if (err != pc->len) {
+		SYS_LOG_ERR("fs_write err=%d", err);
+		return err;
+	}
+
+	err = fs_close(&fp);
+	if (err != 0) {
+		SYS_LOG_ERR("fs_close err=%d", err);
+		return err;
+	}
+
+	return 0;
+}
+
+static int u2f_read_file(const char *fname, u8_t *buf, int len)
+{
+	struct fs_dirent entry;
+	fs_file_t fp;
+	int err;
+
+	err = fs_stat(fname, &entry);
+	if (err != 0) {
+		SYS_LOG_ERR("fs_stat");
+		return err;
+	}
+
+	err = fs_open(&fp, fname);
+	if (err != 0) {
+		SYS_LOG_ERR("fs_open");
+		return err;
+	}
+
+	err = fs_read(&fp, buf, len);
+	fs_close(&fp);
+
+	return err;
+}
+
 static int u2f_write_private(const u8_t *private, u8_t *handle)
 {
+	struct slice s = {
+		.p = private, .len = 32,
+	};
+
 	for (;;) {
 		u8_t key[6];
 		struct fs_dirent entry;
 		int err;
 		size_t olen;
-		fs_file_t fp;
 
 		handle[0] = '/';
 
@@ -188,21 +236,9 @@ static int u2f_write_private(const u8_t *private, u8_t *handle)
 			continue;
 		}
 
-		err = fs_open(&fp, handle);
+		err = u2f_write_file(handle, &s);
 		if (err != 0) {
-			SYS_LOG_ERR("fs_open err=%d", err);
-			return err;
-		}
-
-		err = fs_write(&fp, private, 32);
-		if (err != 32) {
-			SYS_LOG_ERR("fs_write err=%d", err);
-			return err;
-		}
-
-		err = fs_close(&fp);
-		if (err != 0) {
-			SYS_LOG_ERR("fs_close err=%d", err);
+			SYS_LOG_ERR("err=%d", err);
 			return err;
 		}
 
@@ -220,11 +256,12 @@ static int u2f_authenticate(int p1, struct slice *pc, int le,
 	int l = get_u8(pc, 64);
 	const u8_t *handle = get_p(pc, 65, l);
 	u8_t fname[MAX_FILE_NAME + 1];
+	int err;
 
 	SYS_LOG_DBG("chal=%p app=%p l=%d handle=%p", chal, app, l, handle);
 
 	if (chal == NULL || app == NULL || l < 0 || handle == NULL) {
-		return U2F_SW_WRONG_DATA;
+		return -EINVAL;
 	}
 
 	dump_hex("chal", chal, 32);
@@ -232,34 +269,19 @@ static int u2f_authenticate(int p1, struct slice *pc, int le,
 	dump_hex("handle", handle, l);
 
 	if (l != MAX_FILE_NAME) {
-		return U2F_SW_WRONG_LENGTH;
+		return -EINVAL;
 	}
 	memcpy(fname, handle, l);
 	fname[sizeof(fname) - 1] = '\0';
 
 	/* Fetch the private key */
-	struct fs_dirent entry;
-
-	if (fs_stat(fname, &entry) != 0) {
-		SYS_LOG_ERR("fs_stat");
-		return U2F_SW_WRONG_PAYLOAD;
-	}
-
-	fs_file_t fp;
-
-	if (fs_open(&fp, fname) != 0) {
-		SYS_LOG_ERR("fs_open");
-		return U2F_SW_WRONG_PAYLOAD;
-	}
-
 	u8_t private[32];
 
-	if (fs_read(&fp, private, sizeof(private)) != sizeof(private)) {
-		SYS_LOG_ERR("fs_read");
-		return U2F_SW_WRONG_PAYLOAD;
+	err = u2f_read_file(fname, private, sizeof(private));
+	if (err != sizeof(private)) {
+		return -EINVAL;
 	}
 
-	fs_close(&fp);
 	dump_hex("private", private, sizeof(private));
 
 	/* Add user presence */
@@ -273,7 +295,7 @@ static int u2f_authenticate(int p1, struct slice *pc, int le,
 
 	if (tc_sha256_init(&sha) != TC_CRYPTO_SUCCESS) {
 		SYS_LOG_ERR("tc_sha256_init");
-		return U2F_SW_INS_NOT_SUPPORTED;
+		return -ENOMEM;
 	}
 
 	tc_sha256_update(&sha, app, 32);
@@ -297,12 +319,12 @@ static int u2f_authenticate(int p1, struct slice *pc, int le,
 	if (uECC_sign(private, digest, sizeof(digest), signature,
 		      uECC_secp256r1()) != TC_CRYPTO_SUCCESS) {
 		SYS_LOG_ERR("uECC_sign");
-		return U2F_SW_INS_NOT_SUPPORTED;
+		return -ENOMEM;
 	}
 
 	net_buf_add_x962(resp, signature);
 
-	return U2F_SW_NO_ERROR;
+	return 0;
 }
 
 static int u2f_register(int p1, struct slice *pc, int le,
@@ -312,13 +334,12 @@ static int u2f_register(int p1, struct slice *pc, int le,
 	const u8_t *app = get_p(pc, 32, 32);
 	u8_t private[32];
 	u8_t ch;
+	int err;
 
 	if (pc->len != 64) {
 		SYS_LOG_ERR("lc=%d", pc->len);
-		return U2F_SW_WRONG_LENGTH;
+		return -EINVAL;
 	}
-
-	SYS_LOG_DBG("line=%d", __LINE__);
 
 	/* Add the header */
 	net_buf_add_u8(resp, 0x05);
@@ -331,28 +352,37 @@ static int u2f_register(int p1, struct slice *pc, int le,
 	if (uECC_make_key(public, private, uECC_secp256r1()) !=
 	    TC_CRYPTO_SUCCESS) {
 		SYS_LOG_ERR("uECC_make_key");
-		return U2F_SW_INS_NOT_SUPPORTED;
+		return -ENOMEM;
 	}
 
 	u8_t handle[MAX_FILE_NAME + 1];
 
-	if (u2f_write_private(private, handle) != 0) {
+	err = u2f_write_private(private, handle);
+	if (err != 0) {
 		SYS_LOG_ERR("write_private");
-		return U2F_SW_INSUFFICIENT_MEMORY;
+		return err;
 	}
 
 	net_buf_add_u8(resp, sizeof(handle) - 1);
 	net_buf_add_mem(resp, handle, sizeof(handle) - 1);
 
 	/* Add the attestation certificate */
-	net_buf_add_mem(resp, attestation_der, sizeof(attestation_der) - 1);
+	err = u2f_read_file(U2F_CERTIFICATE_NAME, net_buf_tail(resp),
+			    net_buf_tailroom(resp));
+	if (err < 0) {
+		return err;
+	}
+	if (err == 0) {
+		return -EINVAL;
+	}
+	net_buf_add(resp, err);
 
 	/* Generate the digest */
 	struct tc_sha256_state_struct sha;
 
 	if (tc_sha256_init(&sha) != TC_CRYPTO_SUCCESS) {
 		SYS_LOG_ERR("tc_sha256_init");
-		return U2F_SW_INS_NOT_SUPPORTED;
+		return -ENOMEM;
 	}
 
 	ch = 0;
@@ -370,16 +400,92 @@ static int u2f_register(int p1, struct slice *pc, int le,
 
 	/* Generate the signature */
 	u8_t signature[64];
+	u8_t key[32];
 
-	if (uECC_sign(attestation_key, digest, sizeof(digest), signature,
+	err = u2f_read_file(U2F_PRIVATE_KEY_NAME, key, sizeof(key));
+	if (err < 0) {
+		return err;
+	}
+	if (err != sizeof(key)) {
+		return -EINVAL;
+	}
+	if (uECC_sign(key, digest, sizeof(digest), signature,
 		      uECC_secp256r1()) != TC_CRYPTO_SUCCESS) {
 		SYS_LOG_ERR("uECC_sign");
-		return U2F_SW_INS_NOT_SUPPORTED;
+		return -ENOMEM;
 	}
 
 	net_buf_add_x962(resp, signature);
 
-	return U2F_SW_NO_ERROR;
+	return 0;
+}
+
+static int u2f_version(int p1, struct slice *pc, int le, struct net_buf *resp)
+{
+	net_buf_add_mem(resp, "U2F_V2", 6);
+
+	return 0;
+}
+
+static int u2f_write_once(const char *fname, struct slice *pc)
+{
+	struct fs_dirent entry;
+
+	if (fs_stat(fname, &entry) == 0) {
+		SYS_LOG_ERR("%s exists", fname);
+		return -EEXIST;
+	}
+
+	return u2f_write_file(fname, pc);
+}
+
+static int u2f_set_private_key(struct slice *pc)
+{
+	if (pc->len != 32) {
+		return -EINVAL;
+	}
+
+	return u2f_write_once(U2F_PRIVATE_KEY_NAME, pc);
+}
+
+static int u2f_set_certificate(struct slice *pc)
+{
+	return u2f_write_once(U2F_CERTIFICATE_NAME, pc);
+}
+
+static int u2f_erase(void)
+{
+	fs_dir_t dir;
+	int err;
+
+	err = fs_opendir(&dir, "/");
+	if (err != 0) {
+		return err;
+	}
+
+	for (;;) {
+		struct fs_dirent ent;
+
+		err = fs_readdir(&dir, &ent);
+		SYS_LOG_DBG("err=%d name=%s", err, ent.name);
+
+		if (err != 0) {
+			goto err;
+		}
+
+		if (ent.name[0] == '\0') {
+			return fs_closedir(&dir);
+		}
+
+		err = fs_unlink(ent.name);
+		if (err != 0) {
+			goto err;
+		}
+	}
+
+err:
+	fs_closedir(&dir);
+	return err;
 }
 
 int u2f_dispatch(struct net_buf *req, struct net_buf *resp)
@@ -388,7 +494,6 @@ int u2f_dispatch(struct net_buf *req, struct net_buf *resp)
 	u8_t ins;
 	u8_t p1;
 	u8_t p2;
-	u16_t lc = 0;
 	struct slice pc;
 	u16_t le = 0;
 	int err;
@@ -421,7 +526,8 @@ int u2f_dispatch(struct net_buf *req, struct net_buf *resp)
 		le = net_buf_pull_be16(req);
 	}
 
-	SYS_LOG_DBG("ins=%d p1=%d p2=%d lc=%d le=%d", ins, p1, p2, lc, le);
+	SYS_LOG_DBG("ins=%d p1=%d p2=%d lc=%d le=%d", ins, p1, p2, pc.len,
+		    le);
 	switch (ins) {
 	case U2F_REGISTER:
 		err = u2f_register(p1, &pc, le, resp);
@@ -429,13 +535,26 @@ int u2f_dispatch(struct net_buf *req, struct net_buf *resp)
 	case U2F_AUTHENTICATE:
 		err = u2f_authenticate(p1, &pc, le, resp);
 		break;
+	case U2F_VERSION:
+		err = u2f_version(p1, &pc, le, resp);
+		break;
+	case U2F_SET_PRIVATE_KEY:
+		err = u2f_set_private_key(&pc);
+		break;
+	case U2F_SET_CERTIFICATE:
+		err = u2f_set_certificate(&pc);
+		break;
+	case U2F_ERASE:
+		err = u2f_erase();
+		break;
 	default:
-		err = U2F_SW_INS_NOT_SUPPORTED;
+		SYS_LOG_ERR("ins=%d not supported", ins);
+		err = -ENOENT;
 		break;
 	}
 
-	SYS_LOG_DBG("err=%x", err);
+	SYS_LOG_DBG("err=%d", err);
+	net_buf_add_be16(resp, u2f_map_err(err));
 
-	net_buf_add_be16(resp, err);
 	return 0;
 }

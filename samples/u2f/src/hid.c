@@ -164,7 +164,8 @@ static int hid_handle_init(struct net_buf *req, struct net_buf *resp)
 {
 	SYS_LOG_DBG("");
 
-	net_buf_add_mem(resp, net_buf_pull(req, 8), 8);
+	net_buf_add_mem(resp, req->data, 8);
+	net_buf_pull(req, 8);
 	net_buf_add_be32(resp, ++data.next_channel);
 	net_buf_add_u8(resp, 2);
 	net_buf_add_u8(resp, 0);
@@ -189,6 +190,8 @@ static void hid_rx(struct k_work *work)
 	if (req == NULL) {
 		goto done;
 	}
+
+	dump_hex("<<", req->data, req->len);
 
 	hdr = (struct u2f_init_hdr *)req->data;
 	net_buf_pull(req, offsetof(struct u2f_init_hdr, payload));
