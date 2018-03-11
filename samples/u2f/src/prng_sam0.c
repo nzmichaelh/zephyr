@@ -53,7 +53,6 @@ int default_CSPRNG(u8_t *buf, unsigned int len)
 
 	for (;;) {
 		err = tc_hmac_prng_generate(buf, len, &data.prng);
-		SYS_LOG_DBG("err=%d", err);
 
 		switch (err) {
 		case TC_CRYPTO_SUCCESS:

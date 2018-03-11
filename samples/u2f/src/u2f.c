@@ -8,14 +8,17 @@
 #define SYS_LOG_DOMAIN "u2f"
 #include <logging/sys_log.h>
 
+#include <fs.h>
 #include <misc/byteorder.h>
 #include <net/buf.h>
 #include <string.h>
 #include <zephyr.h>
 
+#include <mbedtls/base64.h>
 #include <tinycrypt/constants.h>
 #include <tinycrypt/ecc_dh.h>
 #include <tinycrypt/ecc_dsa.h>
+#include <tinycrypt/ecc_platform_specific.h>
 #include <tinycrypt/sha256.h>
 
 #define U2F_EC_FMT_UNCOMPRESSED 0x04
@@ -153,39 +156,157 @@ static void net_buf_add_x962(struct net_buf *resp, const u8_t *signature)
 	*len += net_buf_add_varint(resp, &signature[32], 32);
 }
 
+static int u2f_write_private(const u8_t *private, u8_t *handle)
+{
+	for (;;) {
+		u8_t key[6];
+		struct fs_dirent entry;
+		int err;
+		size_t olen;
+		fs_file_t fp;
+
+		handle[0] = '/';
+
+		/* Create a handle */
+		if (default_CSPRNG(key, sizeof(key)) != TC_CRYPTO_SUCCESS) {
+			SYS_LOG_ERR("default_CSPRNG");
+			return -EIO;
+		}
+
+		/* Make the handle printable */
+		err = mbedtls_base64_encode(handle + 1, 8 + 1, &olen, key,
+					    sizeof(key));
+		if (err != 0) {
+			SYS_LOG_ERR("base64_encode err=%d", err);
+			return -ENOMEM;
+		}
+
+		strcat(handle, ".pk");
+
+		if (fs_stat(handle, &entry) == 0) {
+			/* Handle already exists, try again. */
+			continue;
+		}
+
+		err = fs_open(&fp, handle);
+		if (err != 0) {
+			SYS_LOG_ERR("fs_open err=%d", err);
+			return err;
+		}
+
+		err = fs_write(&fp, private, 32);
+		if (err != 32) {
+			SYS_LOG_ERR("fs_write err=%d", err);
+			return err;
+		}
+
+		err = fs_close(&fp);
+		if (err != 0) {
+			SYS_LOG_ERR("fs_close err=%d", err);
+			return err;
+		}
+
+		return 0;
+	}
+	while (true)
+		;
+}
+
 static int u2f_authenticate(int p1, struct slice *pc, int le,
-			       struct net_buf *resp)
+			    struct net_buf *resp)
 {
 	const u8_t *chal = get_p(pc, 0, 32);
 	const u8_t *app = get_p(pc, 32, 32);
 	int l = get_u8(pc, 64);
 	const u8_t *handle = get_p(pc, 65, l);
-	u8_t signature[64];
+	u8_t fname[MAX_FILE_NAME + 1];
 
 	SYS_LOG_DBG("chal=%p app=%p l=%d handle=%p", chal, app, l, handle);
 
 	if (chal == NULL || app == NULL || l < 0 || handle == NULL) {
-		return -EINVAL;
+		return U2F_SW_WRONG_DATA;
 	}
 
 	dump_hex("chal", chal, 32);
 	dump_hex("app", app, 32);
 	dump_hex("handle", handle, l);
 
+	if (l != MAX_FILE_NAME) {
+		return U2F_SW_WRONG_LENGTH;
+	}
+	memcpy(fname, handle, l);
+	fname[sizeof(fname) - 1] = '\0';
+
+	/* Fetch the private key */
+	struct fs_dirent entry;
+
+	if (fs_stat(fname, &entry) != 0) {
+		SYS_LOG_ERR("fs_stat");
+		return U2F_SW_WRONG_PAYLOAD;
+	}
+
+	fs_file_t fp;
+
+	if (fs_open(&fp, fname) != 0) {
+		SYS_LOG_ERR("fs_open");
+		return U2F_SW_WRONG_PAYLOAD;
+	}
+
+	u8_t private[32];
+
+	if (fs_read(&fp, private, sizeof(private)) != sizeof(private)) {
+		SYS_LOG_ERR("fs_read");
+		return U2F_SW_WRONG_PAYLOAD;
+	}
+
+	fs_close(&fp);
+	dump_hex("private", private, sizeof(private));
+
 	/* Add user presence */
 	net_buf_add_u8(resp, 1);
 
 	/* Add the press counter */
-	net_buf_add_be32(resp, 1234);
+	net_buf_add_be32(resp, 0x01010101);
 
-	/* Add the signature */
+	/* Generate the digest */
+	struct tc_sha256_state_struct sha;
+
+	if (tc_sha256_init(&sha) != TC_CRYPTO_SUCCESS) {
+		SYS_LOG_ERR("tc_sha256_init");
+		return U2F_SW_INS_NOT_SUPPORTED;
+	}
+
+	tc_sha256_update(&sha, app, 32);
+
+	u8_t ch = 1;
+
+	tc_sha256_update(&sha, &ch, sizeof(ch));
+
+	u32_t w = 0x01010101;
+
+	tc_sha256_update(&sha, &w, sizeof(w));
+	tc_sha256_update(&sha, chal, 32);
+
+	u8_t digest[TC_SHA256_DIGEST_SIZE];
+
+	tc_sha256_final(digest, &sha);
+
+	/* Generate the signature */
+	u8_t signature[64];
+
+	if (uECC_sign(private, digest, sizeof(digest), signature,
+		      uECC_secp256r1()) != TC_CRYPTO_SUCCESS) {
+		SYS_LOG_ERR("uECC_sign");
+		return U2F_SW_INS_NOT_SUPPORTED;
+	}
+
 	net_buf_add_x962(resp, signature);
 
 	return U2F_SW_NO_ERROR;
 }
 
 static int u2f_register(int p1, struct slice *pc, int le,
-			   struct net_buf *resp)
+			struct net_buf *resp)
 {
 	const u8_t *chal = get_p(pc, 0, 32);
 	const u8_t *app = get_p(pc, 32, 32);
@@ -206,8 +327,6 @@ static int u2f_register(int p1, struct slice *pc, int le,
 	net_buf_add_u8(resp, U2F_EC_FMT_UNCOMPRESSED);
 	u8_t *public = net_buf_add(resp, 64);
 
-	SYS_LOG_DBG("line=%d", __LINE__);
-
 	/* Generate a new public/private key pair */
 	if (uECC_make_key(public, private, uECC_secp256r1()) !=
 	    TC_CRYPTO_SUCCESS) {
@@ -215,13 +334,15 @@ static int u2f_register(int p1, struct slice *pc, int le,
 		return U2F_SW_INS_NOT_SUPPORTED;
 	}
 
-	SYS_LOG_DBG("line=%d", __LINE__);
+	u8_t handle[MAX_FILE_NAME + 1];
 
-	/* Add the key handle */
-	u8_t *handle = private;
+	if (u2f_write_private(private, handle) != 0) {
+		SYS_LOG_ERR("write_private");
+		return U2F_SW_INSUFFICIENT_MEMORY;
+	}
 
-	net_buf_add_u8(resp, sizeof(private));
-	net_buf_add_mem(resp, handle, sizeof(private));
+	net_buf_add_u8(resp, sizeof(handle) - 1);
+	net_buf_add_mem(resp, handle, sizeof(handle) - 1);
 
 	/* Add the attestation certificate */
 	net_buf_add_mem(resp, attestation_der, sizeof(attestation_der) - 1);
@@ -234,13 +355,11 @@ static int u2f_register(int p1, struct slice *pc, int le,
 		return U2F_SW_INS_NOT_SUPPORTED;
 	}
 
-	SYS_LOG_DBG("line=%d", __LINE__);
-
 	ch = 0;
 	tc_sha256_update(&sha, &ch, sizeof(ch));
 	tc_sha256_update(&sha, app, 32);
 	tc_sha256_update(&sha, chal, 32);
-	tc_sha256_update(&sha, handle, sizeof(private));
+	tc_sha256_update(&sha, handle, sizeof(handle) - 1);
 	ch = U2F_EC_FMT_UNCOMPRESSED;
 	tc_sha256_update(&sha, &ch, sizeof(ch));
 	tc_sha256_update(&sha, public, 64);
@@ -248,8 +367,6 @@ static int u2f_register(int p1, struct slice *pc, int le,
 	u8_t digest[TC_SHA256_DIGEST_SIZE];
 
 	tc_sha256_final(digest, &sha);
-
-	SYS_LOG_DBG("line=%d", __LINE__);
 
 	/* Generate the signature */
 	u8_t signature[64];
@@ -260,7 +377,6 @@ static int u2f_register(int p1, struct slice *pc, int le,
 		return U2F_SW_INS_NOT_SUPPORTED;
 	}
 
-	SYS_LOG_DBG("line=%d", __LINE__);
 	net_buf_add_x962(resp, signature);
 
 	return U2F_SW_NO_ERROR;
