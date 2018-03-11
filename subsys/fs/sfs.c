@@ -26,7 +26,7 @@
  * involves erasing the old version then creating the new.
  */
 
-#define SYS_LOG_LEVEL 4
+#define SYS_LOG_LEVEL 3
 #define SYS_LOG_DOMAIN "sfs"
 #include <logging/sys_log.h>
 
@@ -39,7 +39,7 @@
 #include <zephyr.h>
 
 /* Size of a block which also limits the largest file size */
-#define SFS_BLOCK_SIZE 256
+#define SFS_BLOCK_SIZE 512
 
 #define SFS_NUM_BLOCKS (FLASH_AREA_SFS_SIZE / SFS_BLOCK_SIZE)
 #define SFS_OFFSET FLASH_AREA_SFS_OFFSET
@@ -135,7 +135,7 @@ static int sfs_read_header(sfs_block block, struct sfs_header *hdr)
 	}
 
 	if (hdr->magic != SFS_MAGIC) {
-		SYS_LOG_INF("bad magic=%d", hdr->magic);
+		SYS_LOG_DBG("bad magic=%d", hdr->magic);
 		return -EIO;
 	}
 
@@ -239,8 +239,7 @@ ssize_t fs_write(fs_file_t *zfp, const void *ptr, size_t size)
 		memcpy(buf, ptr + at, remain);
 		err = flash_write(data.dev,
 				  sfs_to_offset(block) + at -
-				  data.header_capacity +
-				  SFS_HEADER_LEN,
+				  data.header_capacity + data.write_size,
 				  buf, sizeof(buf));
 		if (err != 0) {
 			SYS_LOG_ERR("data write err=%d", err);
@@ -262,6 +261,7 @@ ssize_t fs_write(fs_file_t *zfp, const void *ptr, size_t size)
 	/* Write the header */
 	err = flash_write(data.dev, sfs_to_offset(block), buf, sizeof(buf));
 	if (err != 0) {
+		SYS_LOG_ERR("header write err=%d", err);
 		return err;
 	}
 
