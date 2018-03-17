@@ -256,7 +256,8 @@ static inline int _impl_spi_transceive(struct spi_config *config,
 				       struct spi_buf *rx_bufs,
 				       size_t rx_count)
 {
-	const struct spi_driver_api *api = config->dev->driver_api;
+	const struct spi_driver_api *api =
+		(const struct spi_driver_api *)config->dev->driver_api;
 
 	return api->transceive(config, tx_bufs, tx_count, rx_bufs, rx_count);
 }
@@ -324,7 +325,8 @@ static inline int spi_transceive_async(struct spi_config *config,
 				       size_t rx_count,
 				       struct k_poll_signal *async)
 {
-	const struct spi_driver_api *api = config->dev->driver_api;
+	const struct spi_driver_api *api =
+		(const struct spi_driver_api *)config->dev->driver_api;
 
 	return api->transceive_async(config, tx_bufs, tx_count,
 				     rx_bufs, rx_count, async);
@@ -350,7 +352,8 @@ static inline int spi_read_async(struct spi_config *config,
 				 size_t rx_count,
 				 struct k_poll_signal *async)
 {
-	const struct spi_driver_api *api = config->dev->driver_api;
+	const struct spi_driver_api *api =
+		(const struct spi_driver_api *)config->dev->driver_api;
 
 	return api->transceive_async(config, NULL, 0,
 				     rx_bufs, rx_count, async);
@@ -376,7 +379,8 @@ static inline int spi_write_async(struct spi_config *config,
 				  size_t tx_count,
 				  struct k_poll_signal *async)
 {
-	const struct spi_driver_api *api = config->dev->driver_api;
+	const struct spi_driver_api *api =
+		(const struct spi_driver_api *)config->dev->driver_api;
 
 	return api->transceive_async(config, tx_bufs, tx_count,
 				     NULL, 0, async);
@@ -399,7 +403,8 @@ __syscall int spi_release(struct spi_config *config);
 
 static inline int _impl_spi_release(struct spi_config *config)
 {
-	const struct spi_driver_api *api = config->dev->driver_api;
+	const struct spi_driver_api *api =
+		(const struct spi_driver_api *)config->dev->driver_api;
 
 	return api->release(config);
 }
