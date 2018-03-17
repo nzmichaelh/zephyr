@@ -58,6 +58,10 @@
 #ifndef __UECC_PLATFORM_SPECIFIC_H_
 #define __UECC_PLATFORM_SPECIFIC_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * The RNG function should fill 'size' random bytes into 'dest'. It should
  * return 1 if 'dest' was filled with random data, or 0 if the random data could
@@ -77,5 +81,9 @@
 #define default_RNG_defined 1
 
 int default_CSPRNG(uint8_t *dest, unsigned int size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __UECC_PLATFORM_SPECIFIC_H_ */
