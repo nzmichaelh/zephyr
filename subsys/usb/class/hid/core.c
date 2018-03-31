@@ -86,6 +86,12 @@ static int hid_class_handle_req(struct usb_setup_packet *setup,
 								data);
 			}
 			break;
+		case HID_SET_REPORT:
+			if (hid_device.ops->set_report == NULL) {
+				SYS_LOG_ERR("set_report not implemented");
+				return -EINVAL;
+			}
+			return hid_device.ops->set_report(setup, len, data);
 		default:
 			SYS_LOG_ERR("Unhandled request 0x%x", setup->bRequest);
 			break;
@@ -126,7 +132,11 @@ static int hid_custom_handle_req(struct usb_setup_packet *setup,
 
 static void hid_int_in(u8_t ep, enum usb_dc_ep_cb_status_code ep_status)
 {
-	SYS_LOG_DBG("ep %x status %d", ep, ep_status);
+	if (ep_status != USB_DC_EP_DATA_IN ||
+	    hid_device.ops->int_in_ready == NULL) {
+		return;
+	}
+	hid_device.ops->int_in_ready();
 }
 
 /* Describe Endpoints configuration */
