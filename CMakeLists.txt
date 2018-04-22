@@ -108,7 +108,7 @@ zephyr_compile_options(
 zephyr_compile_options(
   $<$<COMPILE_LANGUAGE:C>:-std=c99>
 
-  $<$<COMPILE_LANGUAGE:CXX>:-std=c++11>
+  $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
   $<$<COMPILE_LANGUAGE:CXX>:-fcheck-new>
   $<$<COMPILE_LANGUAGE:CXX>:-ffunction-sections>
   $<$<COMPILE_LANGUAGE:CXX>:-fdata-sections>
