@@ -74,12 +74,14 @@ constexpr size_t ARRAY_SIZE(T(&)[N]) { return N; }
 #define INLINE
 #endif
 
+#if !defined(__cplusplus)
 #ifndef max
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
 #ifndef min
 #define min(a, b) (((a) < (b)) ? (a) : (b))
+#endif
 #endif
 
 static inline int is_power_of_two(unsigned int x)
