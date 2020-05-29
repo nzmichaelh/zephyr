@@ -50,11 +50,18 @@ hardware features:
 +-----------+------------+------------------------------------------+
 | HWINFO    | on-chip    | Unique 128 bit serial number             |
 +-----------+------------+------------------------------------------+
+| RTC       | on-chip    | Real-Time Counter                        |
++-----------+------------+------------------------------------------+
 
 Other hardware features are not currently supported by Zephyr.
 
 The default configuration can be found in the Kconfig file
 :zephyr_file:`boards/arm/adafruit_itsybitsy_m4_express/adafruit_itsybitsy_m4_express_defconfig`.
+
+Zephyr can use the default Cortex-M SYSTICK timer or the SAM0 specific
+RTC.  To use the RTC, set `CONFIG_CORTEX_M_SYSTICK=n` and set
+`CONFIG_SYS_CLOCK_TICKS_PER_SEC` to no more than 32 kHZ divided by 7,
+i.e. no more than 4500.
 
 Connections and IOs
 ===================
