@@ -52,6 +52,8 @@ hardware features:
 +-----------+------------+------------------------------------------+
 | RTC       | on-chip    | Real-Time Counter                        |
 +-----------+------------+------------------------------------------+
+| WDT       | on-chip    | Watchdog Timer                           |
++-----------+------------+------------------------------------------+
 
 Other hardware features are not currently supported by Zephyr.
 
