@@ -10,3 +10,10 @@ config SPI_SAM0
 	select DMA if SPI_ASYNC
 	help
 	  Enable support for the SAM0 SERCOM SPI driver.
+
+config SPI_SAM0_SOFT
+	bool "Atmel SAM0 series sofware only SPI driver"
+	default y
+	depends on SOC_FAMILY_SAM0
+	help
+	  Enable support for the SAM0 software only SPI driver.

@@ -1,0 +1,10 @@
+description: Atmel SAM0 multi-protocol (UART, SPI, I2C) SERCOM unit
+
+compatible: "atmel,sam0-soft-spi"
+
+include: spi-controller.yaml
+
+properties:
+  sclk:
+    required: true
+    type: phandle

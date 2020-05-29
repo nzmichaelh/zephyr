@@ -31,7 +31,23 @@
 			label = "LED";
 		};
 	};
-};
+
+	softspi0: softspi {
+                compatible = "atmel,sam0-soft-spi";
+                status = "okay";
+                label = "SOFTSPI0";
+                sclk = <&portb>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		led1: apa102@0 {
+                        compatible = "apa,apa102";
+                        reg = <0>;
+                        spi-max-frequency = <24000000>;
+                        label = "LED1";
+                };
+	};
+ };
 
 &cpu0 {
 	clock-frequency = <120000000>;
@@ -51,15 +67,15 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		boot_partition: partition@0 {
-			label = "uf2";
-			reg = <0x00000000 DT_SIZE_K(16)>;
-			read-only;
-		};
+		/* boot_partition: partition@0 { */
+		/* 	label = "uf2"; */
+		/* 	reg = <0x00000000 DT_SIZE_K(16)>; */
+		/* 	read-only; */
+		/* }; */
 
-		code_partition: partition@0x4000 {
+		code_partition: partition@0 {
 			label = "code";
-			reg = <DT_SIZE_K(16) DT_SIZE_K(512-8-16)>;
+			reg = <0 DT_SIZE_K(512-8-16)>;
 			read-only;
 		};
 

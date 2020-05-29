@@ -21,14 +21,17 @@ LOG_MODULE_REGISTER(main);
 /*
  * Number of RGB LEDs in the LED strip, adjust as needed.
  */
-#define STRIP_NUM_LEDS 20
+#define STRIP_NUM_LEDS 1
 
-#define DELAY_TIME K_MSEC(40)
+#define DELAY_TIME K_MSEC(400)
 
 static const struct led_rgb colors[] = {
-	{ .r = 0xff, .g = 0x00, .b = 0x00, }, /* red */
-	{ .r = 0x00, .g = 0xff, .b = 0x00, }, /* green */
 	{ .r = 0x00, .g = 0x00, .b = 0xff, }, /* blue */
+	{ .r = 0x00, .g = 0xff, .b = 0x00, }, /* green */
+	{ .r = 0xff, .g = 0x00, .b = 0x00, }, /* red */
+	{ .r = 0xff, .g = 0x00, .b = 0xff, }, /* red */
+	{ .r = 0xff, .g = 0xff, .b = 0x00, }, /* red */
+	{ .r = 0x00, .g = 0xff, .b = 0xff, }, /* red */
 };
 
 static const struct led_rgb black = {
@@ -50,11 +53,18 @@ const struct led_rgb *color_at(size_t time, size_t i)
 	}
 }
 
-#define DELAY_TIME K_MSEC(40)
 void main(void)
 {
 	struct device *strip;
 	size_t i, time;
+
+	struct device *spi = device_get_binding(DT_LABEL(DT_INST(0, atmel_sam0_soft_spi)));
+	if (spi) {
+                LOG_INF("Found SPI device");
+	} else {
+		LOG_ERR("SPI device %s not found", DT_LABEL(DT_INST(0, atmel_sam0_soft_spi)));
+		return;
+	}
 
 	strip = device_get_binding(DT_LABEL(DT_INST(0, apa_apa102)));
 	if (strip) {
@@ -73,10 +83,7 @@ void main(void)
 	LOG_INF("Displaying pattern on strip");
 	time = 0;
 	while (1) {
-		for (i = 0; i < STRIP_NUM_LEDS; i++) {
-			memcpy(&strip_colors[i], color_at(time, i),
-			       sizeof(strip_colors[i]));
-		}
+                strip_colors[0] = colors[time%ARRAY_SIZE(colors)];
 		led_strip_update_rgb(strip, strip_colors, STRIP_NUM_LEDS);
 		k_sleep(DELAY_TIME);
 		time++;
