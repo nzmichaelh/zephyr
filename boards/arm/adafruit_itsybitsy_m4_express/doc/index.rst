@@ -46,6 +46,8 @@ hardware features:
 +-----------+------------+------------------------------------------+
 | USART     | on-chip    | Serial ports                             |
 +-----------+------------+------------------------------------------+
+| TRNG      | on-chip    | True Random Number Generator             |
++-----------+------------+------------------------------------------+
 
 Other hardware features are not currently supported by Zephyr.
 
