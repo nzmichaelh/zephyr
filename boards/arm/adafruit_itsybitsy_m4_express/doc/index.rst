@@ -48,6 +48,8 @@ hardware features:
 +-----------+------------+------------------------------------------+
 | TRNG      | on-chip    | True Random Number Generator             |
 +-----------+------------+------------------------------------------+
+| HWINFO    | on-chip    | Unique 128 bit serial number             |
++-----------+------------+------------------------------------------+
 
 Other hardware features are not currently supported by Zephyr.
 
