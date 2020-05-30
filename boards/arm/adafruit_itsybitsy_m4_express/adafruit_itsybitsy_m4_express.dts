@@ -45,6 +45,16 @@
 	txpo = <0>;
 };
 
+&sercom1 {
+	status = "okay";
+	compatible = "atmel,sam0-spi";
+	dipo = <3>;
+	dopo = <0>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+};
+
 &flash0 {
 	partitions {
 		compatible = "fixed-partitions";
