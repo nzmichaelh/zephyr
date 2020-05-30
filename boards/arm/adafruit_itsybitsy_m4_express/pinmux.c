@@ -12,6 +12,8 @@ static int board_pinmux_init(struct device *dev)
 {
 	struct device *muxa =
 		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_a)));
+	struct device *muxb =
+		device_get_binding(DT_LABEL(DT_NODELABEL(pinmux_b)));
 
 	ARG_UNUSED(dev);
 
@@ -34,6 +36,26 @@ static int board_pinmux_init(struct device *dev)
 #warning Pin mapping may not be configured
 #endif
 #if (ATMEL_SAM0_DT_SERCOM_CHECK(5, atmel_sam0_uart) && CONFIG_UART_SAM0)
+#warning Pin mapping may not be configured
+#endif
+
+#if (ATMEL_SAM0_DT_SERCOM_CHECK(1, atmel_sam0_spi) && CONFIG_SPI_SAM0)
+	/* SPI SERCOM1 on MISO=PB23/pad 3, MOSI=PA0/pad 0, SCK=PA1/pad 1 */
+	pinmux_pin_set(muxa, 0, PINMUX_FUNC_D);
+	pinmux_pin_set(muxa, 1, PINMUX_FUNC_D);
+	pinmux_pin_set(muxb, 23, PINMUX_FUNC_C);
+#endif
+
+#if (ATMEL_SAM0_DT_SERCOM_CHECK(0, atmel_sam0_spi) && CONFIG_SPI_SAM0)
+#warning Pin mapping may not be configured
+#endif
+#if (ATMEL_SAM0_DT_SERCOM_CHECK(2, atmel_sam0_spi) && CONFIG_SPI_SAM0)
+#warning Pin mapping may not be configured
+#endif
+#if (ATMEL_SAM0_DT_SERCOM_CHECK(4, atmel_sam0_spi) && CONFIG_SPI_SAM0)
+#warning Pin mapping may not be configured
+#endif
+#if (ATMEL_SAM0_DT_SERCOM_CHECK(5, atmel_sam0_spi) && CONFIG_SPI_SAM0)
 #warning Pin mapping may not be configured
 #endif
 
