@@ -17,6 +17,7 @@
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &code_partition;
+		zephyr,flash-controller = &gd25b16c;
 	};
 
 	/* These aliases are provided for compatibility with samples */
@@ -43,6 +44,34 @@
 	current-speed = <115200>;
 	rxpo = <1>;
 	txpo = <0>;
+};
+
+&sercom1 {
+	status = "okay";
+	compatible = "atmel,sam0-spi";
+	dipo = <3>;
+	dopo = <0>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+};
+
+&qspi {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	gd25b16c: gd25b16c@0 {
+		compatible = "gigadevice,gd25b16c", "jedec,spi-nor";
+		label = "GD25B16C";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+		size = <DT_SIZE_M(2)>;
+		jedec-id = [c8 40 15];
+		has-be32k;
+		has-dpd;
+		status = "okay";
+	};
 };
 
 &flash0 {

@@ -46,6 +46,8 @@ hardware features:
 +-----------+------------+------------------------------------------+
 | USART     | on-chip    | Serial ports                             |
 +-----------+------------+------------------------------------------+
+| SPI       | on-chip    | Serial Peripheral Interface ports        |
++-----------+------------+------------------------------------------+
 | TRNG      | on-chip    | True Random Number Generator             |
 +-----------+------------+------------------------------------------+
 | HWINFO    | on-chip    | Unique 128 bit serial number             |
@@ -82,6 +84,13 @@ Serial Port
 
 The SAMD51 MCU has 6 SERCOM based USARTs.  On the ItsyBitsy, SERCOM3 is
 the Zephyr console and is available on pins 0 (RX) and 1 (TX).
+
+SPI Port
+========
+
+The SAMD51 MCU has 6 SERCOM based SPIs.  On the ItsyBitsy, SERCOM1 can be put
+into SPI mode and used to connect to devices over the SCK (SCLK), MO (MOSI), and
+MI (MISO) pins.
 
 Programming and Debugging
 *************************
