@@ -276,6 +276,15 @@
 			#gpio-cells = <2>;
 		};
 
+		qspi: qspi@42003400 {
+			compatible = "atmel,sam0-qspi";
+			reg = <0x42003400 0x400>;
+			status = "disabled";
+			label = "QSPI";
+			clocks = <&mclk 0x10 13>, <&mclk 0x10 21>, <&mclk 0x1c 13>;
+			clock-names = "MCLK", "MCLK_QSPI_2X", "MCLK_QSPI_APB";
+		};
+
 		usb0: usb@41000000 {
 			compatible = "atmel,sam0-usb";
 			status = "disabled";

@@ -1,0 +1,18 @@
+# Copyright (c) 2020, Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Atmel SAM0 QSPI controller
+
+compatible: "atmel,sam0-qspi"
+
+include: spi-controller.yaml
+
+properties:
+    reg:
+      required: true
+
+    clocks:
+      required: true
+
+    clock-names:
+      required: true
