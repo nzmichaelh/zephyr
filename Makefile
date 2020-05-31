@@ -22,3 +22,5 @@ pdfdocs:
 
 doxygen:
 	mkdir -p ${BUILDDIR} && cmake -GNinja -DDOC_TAG=${DOC_TAG} -DSPHINXOPTS=${SPHINXOPTS} -B${BUILDDIR} -Hdoc/ && ninja -C ${BUILDDIR} doxygen
+
+-include local.mk
