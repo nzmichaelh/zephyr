@@ -41,19 +41,21 @@
 #define W25QXXDV_LEN_CMD_ADDRESS      (4)
 #define W25QXXDV_LEN_CMD_AND_ID       (4)
 
-/* relevant status register bits */
+/* Relevant status register bits */
 #define W25QXXDV_WIP_BIT         (0x1 << 0)
 #define W25QXXDV_WEL_BIT         (0x1 << 1)
 #define W25QXXDV_SRWD_BIT        (0x1 << 7)
 #define W25QXXDV_TB_BIT          (0x1 << 3)
 #define W25QXXDV_SR_BP_OFFSET    (2)
 
-/* relevant security register bits */
+/* Relevant security register bits */
 #define W25QXXDV_SECR_WPSEL_BIT  (0x1 << 7)
 #define W25QXXDV_SECR_EFAIL_BIT  (0x1 << 6)
 #define W25QXXDV_SECR_PFAIL_BIT  (0x1 << 5)
 
-/* supported erase size */
+#define W25QXXDV_PAGE_SIZE       (0x0100)
+
+/* Supported erase size */
 #define W25QXXDV_SECTOR_SIZE     (0x1000)
 #define W25QXXDV_BLOCK32K_SIZE   (0x8000)
 #define W25QXXDV_BLOCK_SIZE      (0x10000)

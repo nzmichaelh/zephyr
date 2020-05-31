@@ -1,0 +1,22 @@
+# Copyright (c) 2020 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig SOC_FLASH_SAM0_QSPI
+	bool "Atmel SAM0 QSPI NOR Flash"
+	select FLASH_HAS_DRIVER_ENABLED
+	help
+	  Enable support for the Atmel SAM0 QSPI in Serial memory mode.
+
+if SOC_FLASH_SAM0_QSPI
+
+config SOC_FLASH_SAM0_QSPI_FLASH_LAYOUT_PAGE_SIZE
+	int "Page size to use for FLASH_LAYOUT feature"
+	default 65536
+	help
+	  When CONFIG_FLASH_PAGE_LAYOUT is used this driver will support
+	  that API.  By default the page size corresponds to the block
+	  size (65536).  Other options include the 32K-byte erase size
+	  (32768), the sector size (4096), or any non-zero multiple of the
+	  sector size.
+
+endif # SOC_FLASH_SAM0_QSPI

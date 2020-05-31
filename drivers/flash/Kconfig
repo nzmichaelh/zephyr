@@ -68,4 +68,6 @@ source "drivers/flash/Kconfig.rv32m1"
 
 source "drivers/flash/Kconfig.nordic_qspi_nor"
 
+source "drivers/flash/Kconfig.sam0_qspi"
+
 endif # FLASH
