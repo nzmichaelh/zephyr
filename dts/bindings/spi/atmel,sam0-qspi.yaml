@@ -1,0 +1,16 @@
+description: |
+  Atmel SAM0 QSPI peripheral
+
+compatible: "atmel,sam0-qspi"
+
+include: spi-controller.yaml
+
+properties:
+    reg:
+      required: true
+
+    interrupts:
+      required: true
+
+    clocks:
+      required: true
