@@ -562,7 +562,9 @@ int usb_dc_ep_write(u8_t ep, const u8_t *buf, u32_t len, u32_t *ret_bytes)
 		USB_DEVICE_EPINTFLAG_TRCPT1 | USB_DEVICE_EPINTFLAG_TRFAIL1;
 	endpoint->EPSTATUSSET.bit.BK1RDY = 1;
 
-	*ret_bytes = len;
+	if (ret_bytes != NULL) {
+		*ret_bytes = len;
+	}
 
 	return 0;
 }
