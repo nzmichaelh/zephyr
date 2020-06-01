@@ -22,6 +22,7 @@
 	/* These aliases are provided for compatibility with samples */
 	aliases {
 		led0 = &led0;
+		pwm-0 = &tcc1;
 	};
 
 	leds {
@@ -53,6 +54,14 @@
 
 	#address-cells = <1>;
 	#size-cells = <0>;
+};
+
+&tcc1 {
+      	compatible = "atmel,sam0-tcc-pwm";
+	status = "okay";
+	/* 120 MHz / 64 for a minimum frequency of 29 Hz */
+	prescaler = <64>;
+	#pwm-cells = <1>;
 };
 
 &flash0 {

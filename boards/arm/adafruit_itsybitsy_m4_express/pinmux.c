@@ -59,6 +59,13 @@ static int board_pinmux_init(struct device *dev)
 #warning Pin mapping may not be configured
 #endif
 
+#if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(tcc1), atmel_sam0_tcc_pwm, okay) && CONFIG_PWM_SAM0
+        /* TCC1/WO[2] on PA18 (D7) */
+	pinmux_pin_set(muxa, 18, PINMUX_FUNC_F);
+        /* TCC1/WO[3] on PA19 (D9) */
+	pinmux_pin_set(muxa, 19, PINMUX_FUNC_F);
+#endif
+
 	return 0;
 }
 

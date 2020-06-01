@@ -56,6 +56,8 @@ hardware features:
 +-----------+------------+------------------------------------------+
 | WDT       | on-chip    | Watchdog Timer                           |
 +-----------+------------+------------------------------------------+
+| PWM       | on-chip    | PWM                                      |
++-----------+------------+------------------------------------------+
 
 Other hardware features are not currently supported by Zephyr.
 
@@ -91,6 +93,13 @@ SPI Port
 The SAMD51 MCU has 6 SERCOM based SPIs.  On the ItsyBitsy, SERCOM1 can be put
 into SPI mode and used to connect to devices over the SCK (SCLK), MO (MOSI), and
 MI (MISO) pins.
+
+PWM
+===
+
+The SAMD51 has three PWM generators with up to six channels each.  :code:`TCC_0`
+has a resolution of 24 bits and all other generators are 16 bit.  `TCC_1` pin 2
+is mapped to PA18 (D7) and pin 3 is mapped to PA19 (D9).
 
 Programming and Debugging
 *************************
