@@ -66,6 +66,12 @@ static int board_pinmux_init(struct device *dev)
 	pinmux_pin_set(muxa, 19, PINMUX_FUNC_F);
 #endif
 
+#if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(usb0), atmel_sam0_usb, okay) && CONFIG_USB_DC_SAM0
+	/* USB DP on PA25, USB DM on PA24 */
+	pinmux_pin_set(muxa, 25, PINMUX_FUNC_H);
+	pinmux_pin_set(muxa, 24, PINMUX_FUNC_H);
+#endif
+
 	return 0;
 }
 

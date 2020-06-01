@@ -54,6 +54,8 @@ hardware features:
 +-----------+------------+------------------------------------------+
 | RTC       | on-chip    | Real-Time Counter                        |
 +-----------+------------+------------------------------------------+
+| USB       | on-chip    | USB device                               |
++-----------+------------+------------------------------------------+
 | WDT       | on-chip    | Watchdog Timer                           |
 +-----------+------------+------------------------------------------+
 | PWM       | on-chip    | PWM                                      |
@@ -100,6 +102,14 @@ PWM
 The SAMD51 has three PWM generators with up to six channels each.  :code:`TCC_0`
 has a resolution of 24 bits and all other generators are 16 bit.  `TCC_1` pin 2
 is mapped to PA18 (D7) and pin 3 is mapped to PA19 (D9).
+
+USB Device Port
+===============
+
+The SAMD51 MCU has a USB device port that can be used to communicate
+with a host PC.  See the :ref:`usb-samples` sample applications for
+more, such as the :ref:`usb_cdc-acm` sample which sets up a virtual
+serial port that echos characters back to the host PC.
 
 Programming and Debugging
 *************************

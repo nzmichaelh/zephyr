@@ -64,6 +64,10 @@
 	#pwm-cells = <1>;
 };
 
+&usb0 {
+	status = "okay";
+};
+
 &flash0 {
 	partitions {
 		compatible = "fixed-partitions";
