@@ -68,6 +68,10 @@
 	status = "okay";
 };
 
+&dmac {
+	status = "okay";
+};
+
 &flash0 {
 	partitions {
 		compatible = "fixed-partitions";
