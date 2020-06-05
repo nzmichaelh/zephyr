@@ -540,6 +540,7 @@ int usb_dc_ep_write(u8_t ep, const u8_t *buf, u32_t len, u32_t *ret_bytes)
 	UsbDeviceEndpoint *endpoint = &regs->DeviceEndpoint[ep_num];
 	UsbDeviceDescriptor *desc = &data->descriptors[ep_num];
 	u32_t addr = desc->DeviceDescBank[1].ADDR.reg;
+	u32_t mps = desc->DeviceDescBank[1].PCKSIZE.bit.SIZE;
 
 	if (ep_num >= USB_NUM_ENDPOINTS) {
 		LOG_ERR("endpoint index/address out of range");
@@ -549,6 +550,16 @@ int usb_dc_ep_write(u8_t ep, const u8_t *buf, u32_t len, u32_t *ret_bytes)
 	if (endpoint->EPSTATUS.bit.BK1RDY) {
 		/* Write in progress, drop */
 		return -EAGAIN;
+	}
+
+	/* Turn the encoded buffer size back into bytes */
+	if (mps >= 7) {
+		mps = 1023;
+	} else {
+		mps = 1 << (mps+3);
+	}
+	if (len > mps) {
+		len = mps;
 	}
 
 	/* Note that this code does not use the hardware's
