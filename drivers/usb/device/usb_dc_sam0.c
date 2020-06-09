@@ -59,10 +59,6 @@ struct usb_sam0_data {
 
 	uint8_t addr;
 	uint32_t out_at;
-
-	/* Memory used as a simple heap for the endpoint buffers */
-	uint32_t ep_buf[USB_NUM_ENDPOINTS * 64 / 4];
-	int brk;
 };
 
 static struct usb_sam0_data usb_sam0_data_0;
@@ -351,6 +347,8 @@ int usb_dc_ep_configure(const struct usb_dc_ep_cfg_data *const cfg)
 	uint8_t ep = cfg->ep_addr & ~USB_EP_DIR_MASK;
 	UsbDeviceEndpoint *endpoint = &regs->DeviceEndpoint[ep];
 	UsbDeviceDescriptor *desc = &data->descriptors[ep];
+	UsbDeviceDescBank *bank = &desc->DeviceDescBank[for_in ? 1 : 0];
+	void *buf = (void *)bank->ADDR.reg;
 	int type;
 	int size = -1;
 	int i;
@@ -385,21 +383,25 @@ int usb_dc_ep_configure(const struct usb_dc_ep_cfg_data *const cfg)
 		return -EINVAL;
 	}
 
+	if (bank->PCKSIZE.bit.SIZE != size || buf == NULL) {
+		/* Release the previous buffer, if any */
+		k_free(buf);
+
+		buf = k_malloc(size);
+		if (buf == NULL) {
+			return -ENOMEM;
+		}
+		bank->PCKSIZE.bit.SIZE = size;
+		bank->ADDR.reg = (uintptr_t)buf;
+	}
+
 	if (for_in) {
 		endpoint->EPCFG.bit.EPTYPE1 = type;
-		desc->DeviceDescBank[1].PCKSIZE.bit.SIZE = size;
-		desc->DeviceDescBank[1].ADDR.reg =
-			(uintptr_t)&data->ep_buf[data->brk];
 		endpoint->EPSTATUSCLR.bit.BK1RDY = 1;
 	} else {
 		endpoint->EPCFG.bit.EPTYPE0 = type;
-		desc->DeviceDescBank[0].PCKSIZE.bit.SIZE = size;
-		desc->DeviceDescBank[0].ADDR.reg =
-			(uintptr_t)&data->ep_buf[data->brk];
 		endpoint->EPSTATUSCLR.bit.BK0RDY = 1;
 	}
-
-	data->brk += cfg->ep_mps / sizeof(uint32_t);
 
 	return 0;
 }
@@ -621,7 +623,7 @@ int usb_dc_ep_read_ex(uint8_t ep, uint8_t *buf, uint32_t max_data_len,
 	}
 
 	remain = bytes - data->out_at;
-	take = MIN(max_data_len, remain);
+	take = Z_MIN(max_data_len, remain);
 	memcpy(buf, (uint8_t *)addr + data->out_at, take);
 
 	if (read_bytes != NULL) {
