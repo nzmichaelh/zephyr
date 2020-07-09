@@ -79,15 +79,15 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	cs-gpios = <&porta 8 GPIO_ACTIVE_LOW>;
+	cs-gpios = <&porta 14 GPIO_ACTIVE_LOW>;
 
 	wifi0: nina@0 {
 		status = "okay";
 		compatible = "u-blox,nina";
-		spi-max-frequency = <8000000>;
+		spi-max-frequency = <1000000>;
 		reg = <0>;
 		ready-gpios = <&porta 9 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-		irq-gpios = <&porta 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		irq-gpios = <&porta 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 		reset-gpios = <&porta 15 GPIO_ACTIVE_LOW>;
 		label = "NINAWIFI0";
 	};
