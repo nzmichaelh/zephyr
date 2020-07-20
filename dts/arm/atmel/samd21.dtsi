@@ -19,6 +19,8 @@
 			interrupts = <7 0>;
 			num-bidir-endpoints = <8>;
 			label = "USB0";
+
+			pinctrl-0 = <&pa25g_usb_dp &pa24g_usb_dm>;
 		};
 
 		dmac: dmac@41004800 {
