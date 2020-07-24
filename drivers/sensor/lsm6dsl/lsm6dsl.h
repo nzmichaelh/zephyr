@@ -607,6 +607,7 @@
 struct lsm6dsl_config {
 	const char *comm_master_dev_name;
 	int (*comm_init)(struct device *dev);
+	uint8_t wai;
 	union {
 		struct {
 			uint16_t dev_addr;
