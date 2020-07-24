@@ -52,17 +52,27 @@
 
 &spi1 {
 	status = "okay";
+
+	lsm6dsl@0 {
+		compatible = "st,lsm6dsl";
+		reg = <0>;
+		spi-max-frequency = <2000000>;
+		irq-gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;
+		label = "LSM6DSL_SPI2";
+	};
 };
 
 &spi2 {
 	status = "okay";
 
+	cs-gpios = <&gpiob 4 5>;
+
 	/* ST Microelectronics LSM6DSL accel/gyro sensor */
-	lsm6dsl@1 {
+	lsm6dsl@0 {
 		compatible = "st,lsm6dsl";
-		reg = <1>;
+		reg = <0>;
 		spi-max-frequency = <1000000>;
-		irq-gpios = <&gpiob 1 GPIO_ACTIVE_HIGH>;
+		irq-gpios = <&gpiob 3 GPIO_ACTIVE_HIGH>;
 		label = "LSM6DSL_SPI";
 	};
 };
@@ -84,6 +94,13 @@
 &i2c1 {
 	status = "okay";
 	clock-frequency = <I2C_BITRATE_FAST>;
+
+	lsm6dsl@23 {
+		compatible = "st,lsm6dsl";
+		reg = <23>;
+		label = "LSM6DSL_I2C";
+		irq-gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &i2c2 {
