@@ -1,0 +1,8 @@
+# Copyright (c) 2024 Michael Hope
+# SPDX-License-Identifier: Apache-2.0
+
+CONFIG_MAIN_STACK_SIZE=512
+
+CONFIG_IDLE_STACK_SIZE=256
+
+CONFIG_ISR_STACK_SIZE=256
