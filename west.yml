@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: babblesim
       url-base: https://github.com/BabbleSim
+    - name: cnlohr
+      url-base: https://github.com/cnlohr
 
   group-filter: [-babblesim, -optional]
 
@@ -246,6 +248,12 @@ manifest:
     - name: hal_ti
       revision: 2e7b95ad079e9f636884eedc6853e6ad98b85f65
       path: modules/hal/ti
+      groups:
+        - hal
+    - name: ch32v003fun
+      remote: cnlohr
+      revision: 2d464950429504417a2cb33bc5313739500e518e
+      path: modules/hal/wch
       groups:
         - hal
     - name: hal_wurthelektronik
