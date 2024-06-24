@@ -1,0 +1,7 @@
+config SOC_CH32V003
+	select RISCV
+	select BUILD_OUTPUT_HEX
+	select RISCV_ISA_RV32E
+	select RISCV_ISA_EXT_ZICSR
+	select RISCV_ISA_EXT_ZIFENCEI
+	select RISCV_ISA_EXT_C
