@@ -37,16 +37,16 @@ int pinctrl_configure_pins(const pinctrl_soc_pin_t *pins, uint8_t pin_cnt, uintp
 			if (pins->drive_open_drain) {
 				cfg |= 0x04;
 			}
-			if (bit0 != CH32V003_PINCTRL_AFIO_UNSET) {
-				cfg |= 0x08;
-			}
+			//			if (bit0 != CH32V003_PINCTRL_AFIO_UNSET) {
+			cfg |= 0x08;
+			//}
 		} else {
 			if (pins->bias_pull_up || pins->bias_pull_down) {
 				cfg |= 0x08;
 			}
 		}
 		regs->CFGLR = (regs->CFGLR & ~(0x0F << (pin * 4))) | (cfg << (pin * 4));
-
+		//	printk("pin %d %x\n", pin, cfg);
 		if (is_output) {
 			regs->OUTDR |= 1 << pin;
 		} else {
@@ -58,14 +58,13 @@ int pinctrl_configure_pins(const pinctrl_soc_pin_t *pins, uint8_t pin_cnt, uintp
 				regs->BCR = 1 << pin;
 			}
 		}
-
 		if (bit0 != CH32V003_PINCTRL_AFIO_UNSET) {
 			pcfr1 |= 1 << bit0;
 			if (bit1 != CH32V003_PINCTRL_AFIO_UNSET) {
 				pcfr1 |= 1 << bit1;
 			}
 		}
-		pcfr1 = pcfr1;
+		AFIO->PCFR1 = pcfr1;
 	}
 
 	return 0;
