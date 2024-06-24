@@ -1,0 +1,45 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright (c) 2021 Andrei-Edward Popa
+ * Copyright (c) 2022 Espressif Systems (Shanghai) Co., Ltd.
+ */
+
+#include <zephyr/dt-bindings/pwm/pwm.h>
+#include <zephyr/dt-bindings/pinctrl/ch32v003-pinctrl.h>
+
+/ {
+	aliases {
+		pwm-0 = &tim2;
+		pwm-led0 = &pwm_red_led;
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		/* Remap 0 on PD4 */
+		pwm_red_led: pwm_red_led_2 {
+			pwms = <&tim2 0 1000 PWM_POLARITY_NORMAL>;
+		};
+	};
+};
+
+&pinctrl {
+	tim2_default: tim2_default {
+		group1 {
+			pinmux = <TIM2_CH1_PD4_0>;
+			//output-enable;
+		};
+	};
+};
+
+&tim2 {
+	pinctrl-0 = <&tim2_default>;
+	pinctrl-names = "default";
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	channel0@0 {
+		reg = <0x0>;
+		timer = <0>;
+	};
+};
