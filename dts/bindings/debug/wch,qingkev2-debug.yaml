@@ -1,0 +1,11 @@
+# Copyright (c) 2024 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+# Common fields for ARM instrumentation trace macrocell
+# Pin control property may be used for SWO pins
+
+description: QingKeV2 Debug
+
+compatible: "wch,qingkev2-debug"
+
+include: base.yaml
