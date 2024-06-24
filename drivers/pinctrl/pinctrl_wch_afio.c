@@ -18,9 +18,9 @@ static GPIO_TypeDef *const wch_afio_pinctrl_regs[] = {
 
 int pinctrl_configure_pins(const pinctrl_soc_pin_t *pins, uint8_t pin_cnt, uintptr_t reg)
 {
-	uint8_t pin;
+	int i;
 
-	for (pin = 0; pin < pin_cnt; ++pin, ++pins) {
+	for (i = 0; i < pin_cnt; ++i, ++pins) {
 		uint8_t pin = (pins->config >> CH32V003_PINCTRL_PIN_SHIFT) & 0x0F;
 		uint8_t port = (pins->config >> CH32V003_PINCTRL_PORT_SHIFT) & 0x03;
 		bool is_output = ((pins->config >> CH32V003_PINCTRL_OUTPUT_BIT) & 0x01) != 0;
