@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <ch32v00x.h>
+
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
-#include <ch32v00x.h>
 #include <soc.h>
 
 static void soc_ch32v003_delay_start(void)
@@ -21,44 +22,54 @@ static void soc_ch32v003_delay_start(void)
 	}
 }
 
-static void soc_ch32v003_sysclock_hsi(void)
-{
-	/* Flash 0 wait state */
-	FLASH->ACTLR = (FLASH->ACTLR & ~FLASH_ACTLR_LATENCY) | FLASH_ACTLR_LATENCY_1;
-
-	/* HCLK = SYSCLK = APB1 */
-	RCC->CFGR0 |= RCC_HPRE_DIV1;
-	/* PLLCLK = HSI * 2 */
-	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_PLLSRC) | RCC_PLLSRC_HSI_Mul2;
-
-	/* Enable PLL */
-	RCC->CTLR |= RCC_PLLON;
-	while ((RCC->CTLR & RCC_PLLRDY) == 0) {
-	}
-
-	/* Select PLL as system clock source */
-	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_PLL;
-	while ((RCC->CFGR0 & RCC_SWS) != RCC_SWS_PLL) {
-	}
-}
-
 static int soc_ch32v003_init(void)
 {
 	soc_ch32v003_delay_start();
 
+#if defined(CONFIG_SOC_WCH_CH32V00X_PLL)
+	/* Disable the PLL before potentially changing the input clocks. */
+	RCC->CTLR &= ~RCC_PLLON;
+#endif
+#if defined(CONFIG_SOC_WCH_CH32V00X_LSI)
+	RCC->RSTSCKR |= RCC_LSION;
+	while ((RCC->RSTSCKR & RCC_LSIRDY) == 0) {
+	}
+#endif
+#if defined(CONFIG_SOC_WCH_CH32V00X_HSI)
 	RCC->CTLR |= RCC_HSION;
-	// PLLSRC = 0, which is the HSI.
-	RCC->CFGR0 = RCC_MCO_NOCLOCK & ~RCC_PLLSRC;
-	// Turn off PLLON, CSSON, HSEON.
-	RCC->CTLR &= (uint32_t)0xFEF6FFFF;
-	// Turn off HSEBYP.
-	RCC->CTLR &= (uint32_t)0xFFFBFFFF;
-	// Turn off PLLSRC again?
-	RCC->CFGR0 &= (uint32_t)0xFFFEFFFF;
-	// Write to INTR to clear the CSSC, PLLRDYC, HSERDYC, and LSIRDYC flags.
-	RCC->INTR = 0x009F0000;
+	while ((RCC->CTLR & RCC_HSIRDY) == 0) {
+	}
+#endif
+#if defined(CONFIG_SOC_WCH_CH32V00X_HSE)
+	RCC->CTLR |= RCC_HSEON;
+	while ((RCC->CTLR & RCC_HSERDY) == 0) {
+	}
+#endif
+#if defined(CONFIG_SOC_WCH_CH32V00X_HSE_AS_PLLSRC)
+	RCC->CFGR0 &= ~RCC_PLLSRC;
+#elif defined(CONFIG_SOC_WCH_CH32V00X_HSI_AS_PLLSRC)
+	RCC->CFGR0 &= ~RCC_PLLSRC;
+#endif
+#if defined(CONFIG_SOC_WCH_CH32V00X_PLL)
+	RCC->CTLR |= RCC_PLLON;
+	while ((RCC->CTLR & RCC_PLLRDY) == 0) {
+	}
+#endif
+#if defined(CONFIG_SOC_WCH_CH32V00X_HSI_AS_SYSCLK)
+	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_HSI;
+#elif defined(CONFIG_SOC_WCH_CH32V00X_HSE_AS_SYSCLK)
+	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_HSE;
+#elif defined(CONFIG_SOC_WCH_CH32V00X_PLL_AS_SYSCLK)
+	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_PLL;
+#endif
+	RCC->CTLR |= RCC_CSSON;
 
-	soc_ch32v003_sysclock_hsi();
+	/* Clear the interrupt flags. */
+	RCC->INTR = RCC_CSSC | RCC_PLLRDYC | RCC_HSERDYC | RCC_LSIRDYC;
+	/* Set the Flash to 0 wait state */
+	FLASH->ACTLR = (FLASH->ACTLR & ~FLASH_ACTLR_LATENCY) | FLASH_ACTLR_LATENCY_1;
+	/* HCLK = SYSCLK = APB1 */
+	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_HPRE) | RCC_HPRE_DIV1;
 
 	return 0;
 }
