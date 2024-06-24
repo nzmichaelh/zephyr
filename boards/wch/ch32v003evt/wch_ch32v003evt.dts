@@ -15,7 +15,7 @@
 	chosen {
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
-		zephyr,console = &usart1;
+		zephyr,console = &debug0;
 		zephyr,shell-uart = &usart1;
 	};
 
@@ -30,6 +30,10 @@
 	aliases {
 		led0 = &red_led;
 	};
+};
+
+&debug0 {
+	status = "okay";
 };
 
 &gpiod {
