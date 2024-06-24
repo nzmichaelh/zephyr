@@ -1,10 +1,10 @@
 #Console driver configuration options
 
-# Copyright (c) 2014-2015 Wind River Systems, Inc.
-# Copyright (c) 2016 Cadence Design Systems, Inc.
-# SPDX-License-Identifier: Apache-2.0
+#Copyright(c) 2014 - 2015 Wind River Systems, Inc.
+#Copyright(c) 2016 Cadence Design Systems, Inc.
+#SPDX - License - Identifier : Apache - 2.0
 
-# Setting shared by different subsystems
+#Setting shared by different subsystems
 
 menuconfig CONSOLE
 	bool "Console drivers"
@@ -290,5 +290,14 @@ config QINGKEV2_DEBUG_CONSOLE
 	select CONSOLE_HAS_DRIVER
 	help
 	  Emit console messages to the host via the debug unit. These can be displayed using `minichlink`
+
+if QINGKEV2_DEBUG_CONSOLE
+
+config QINGKEV2_DEBUG_CONSOLE_BUFFER
+	bool "Enable buffering"
+	help
+	  Buffer any messages sent to the debug unit. This can increase throughput but, as the buffer is flushed on newline, can lead to data being stuck in the buffer.
+
+endif # QINGKEV2_DEBUG_CONSOLE
 
 endif # CONSOLE
