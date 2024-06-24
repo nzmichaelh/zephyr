@@ -1,0 +1,30 @@
+# Copyright (c) 2024 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+description: WCH CH32V00x Analog-to-digital Converter (ADC)
+
+compatible: "wch,adc"
+
+include: adc-controller.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  vref-mv:
+    type: int
+    default: 3300
+    description: |
+      Reference voltage of in mV. This is typically VDD.
+
+  "#io-channel-cells":
+    const: 1
+
+io-channel-cells:
+  - input
