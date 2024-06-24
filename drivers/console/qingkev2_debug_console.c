@@ -31,6 +31,31 @@ extern void __printk_hook_install(int (*fn)(int));
 #define TX_FULL    0x80
 #define TX_VALID   0x04
 
+#if defined(CONFIG_QINGKEV2_DEBUG_CONSOLE_BUFFER)
+struct qingkeyv2_data {
+	uint32_t buffer;
+	uint8_t count;
+};
+
+struct qingkeyv2_data qingkeyv2_data_0;
+#endif
+
+static int qingkev2_debug_console_write(uint32_t buffer, int count)
+{
+	volatile struct qingkeyv2_debug_regs *regs =
+		(volatile struct qingkeyv2_debug_regs *)DT_INST_REG_ADDR(0);
+	int timeout = TX_TIMEOUT;
+
+	uint32_t tx = (buffer << 8) | count | TX_VALID | TX_FULL;
+	while ((regs->data0 & TX_FULL) != 0) {
+		if (--timeout == 0) {
+			return 0;
+		}
+	}
+	regs->data0 = tx;
+	return 0;
+}
+
 static int qingkev2_debug_console_putc(int ch)
 {
 	/*
@@ -39,17 +64,27 @@ static int qingkev2_debug_console_putc(int ch)
 	 to three bytes of data. The `TX_FULL` bit is used to pass ownership back and forth
 	 between the host and device.
 	 */
+	int err;
+
+#if defined(CONFIG_QINGKEV2_DEBUG_CONSOLE_BUFFER)
 	volatile struct qingkeyv2_debug_regs *regs =
 		(volatile struct qingkeyv2_debug_regs *)DT_INST_REG_ADDR(0);
-	int timeout = TX_TIMEOUT;
+	struct qingkeyv2_data *data = &qingkeyv2_data_0;
 
-	while ((regs->data0 & TX_FULL) != 0) {
-		if (--timeout == 0) {
-			return 0;
-		}
+	if (data->count < 3) {
+		data->buffer |= ch << (8 * data->count);
+		data->count++;
 	}
-	regs->data0 = (ch << 8) | 1 | TX_VALID | TX_FULL;
-	return 1;
+
+	if (data->count == 3 || ch == '\n' || (regs->data0 & TX_FULL) == 0) {
+		err = qingkev2_debug_console_write(data->buffer, data->count);
+		data->count = 0;
+		data->buffer = 0;
+	}
+#else
+	err = qingkev2_debug_console_write(ch, /*count=*/1);
+#endif
+	return (err == 0) ? 1 : err;
 }
 
 static int qingkev2_debug_console_init(void)
