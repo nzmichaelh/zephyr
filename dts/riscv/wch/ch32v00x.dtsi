@@ -142,6 +142,10 @@
 		adc1: adc@40012400 {
 			compatible = "wch,adc";
 			reg = <0x40012400 16>;
+			clocks = <&rcc CH32V00X_CLOCK_ADC1>;
+			interrupt-parent = <&pfic>;
+			interrupts = <29>;
+			#io-channel-cells = <1>;
 		};
 
 		tim1: counter@40012c00 {
