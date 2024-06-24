@@ -15,10 +15,11 @@ GTEXT(__initialize)
 SECTION_FUNC(vectors, ivt)
 	.option norvc
 	j       __start
-	.rept (32)
-	.word   _isr_wrapper
+	.rept 38
+	.word	_isr_wrapper
 	.endr
 
 SECTION_FUNC(vectors, __start)
-	/* Jump to __initialize */
-	tail __initialize
+	li 	a0, 3
+	csrw	mtvec, a0
+	j	__initialize
