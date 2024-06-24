@@ -1,0 +1,34 @@
+/*
+ * Copyright (c) 2024 Google LLC.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&gpioc {
+	status = "okay";
+};
+
+&pinctrl {
+	i2c1_default: i2c1_default {
+		group0 {
+			pinmux = <I2C1_SCL_PC2_0>, <I2C1_SDA_PC1_0>;
+			drive-open-drain;
+		};
+	};
+};
+
+&i2c1 {
+	status = "okay";
+	clock-frequency = <100000>;
+
+	pinctrl-0 = <&i2c1_default>;
+	pinctrl-names = "default";
+
+	mpu6050@69 {
+		compatible = "invensense,mpu6050";
+		/* Drotek which is on the alternate address. */
+		reg = <0x69>;
+		status = "okay";
+		int-gpios = <&gpiod 2 GPIO_ACTIVE_HIGH>;
+	};
+};
