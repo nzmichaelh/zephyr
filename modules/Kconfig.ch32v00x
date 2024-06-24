@@ -1,0 +1,8 @@
+# Gecko SDK
+
+# Copyright (c) 2024 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+config HAS_CH32V00X_HAL
+	bool
+	depends on SOC_CH32V003
