@@ -26,11 +26,13 @@ int pinctrl_configure_pins(const pinctrl_soc_pin_t *pins, uint8_t pin_cnt, uintp
 		bool is_output = ((pins->config >> CH32V003_PINCTRL_OUTPUT_BIT) & 0x01) != 0;
 		uint8_t bit0 = (pins->config >> CH32V003_PINCTRL_AFIO0_SHIFT) & 0x1F;
 		uint8_t bit1 = (pins->config >> CH32V003_PINCTRL_AFIO1_SHIFT) & 0x1F;
+		bool is_analog = (pins->config >> CH32V003_PINCTRL_ANALOGUE_INPUT_SHIFT) != 0;
 		GPIO_TypeDef *regs = wch_afio_pinctrl_regs[port];
 		uint32_t pcfr1 = AFIO->PCFR1;
 		uint8_t cfg = 0;
 
-		if (is_output) {
+		if (is_analog) {
+		} else if (is_output) {
 			cfg |= (pins->slew_rate + 1);
 			if (pins->drive_open_drain) {
 				cfg |= 0x04;
