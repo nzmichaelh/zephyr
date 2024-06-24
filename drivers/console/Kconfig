@@ -284,4 +284,13 @@ config WINSTREAM_CONSOLE
 
 	  See the WINSTREAM Kconfig help for more information.
 
+config QINGKEV2_DEBUG_CONSOLE
+	bool "Use the QingKeV2 debug module as a console"
+	depends on DT_HAS_WCH_QINGKEV2_DEBUG_ENABLED
+	select CONSOLE_HAS_DRIVER
+	help
+	  Emit console messages to the host via the debug unit which can be displayed
+	  using `minichlink`. Text is buffered and, in the worst case, flushed when a
+	  space or ASCII control character is printed.
+
 endif # CONSOLE
