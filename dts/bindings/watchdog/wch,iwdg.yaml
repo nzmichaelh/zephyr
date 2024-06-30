@@ -1,0 +1,12 @@
+# Copyright (c) 2024 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+description: CH32V00x Independent Watchdog (IWDG)
+
+compatible: "wch,iwdg"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true

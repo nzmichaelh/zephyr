@@ -94,6 +94,11 @@
 			interrupts = <12>;
 		};
 
+		iwdg: watchdog@40003000 {
+			compatible = "wch,iwdg";
+			reg = <0x40003000 16>;
+		};
+
 		pwr: pwr@40007000 {
 			compatible = "wch,pwr";
 			reg = <0x40007000 16>;
