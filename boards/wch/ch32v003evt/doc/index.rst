@@ -48,6 +48,8 @@ The ``wch_ch32v003evt`` board target supports the following hardware features:
 +-----------+------------+----------------------+
 | UART      | on-chip    | uart                 |
 +-----------+------------+----------------------+
+| Watchdog  | on-chip    | watchdog             |
++-----------+------------+----------------------+
 
 Other hardware features have not been enabled yet for this board.
 
