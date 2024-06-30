@@ -1,0 +1,9 @@
+# Copyright (c) 2024 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+config WDT_IWDG_CH32V00X
+	bool "CH32V00x Independent Watchdog (IWDG) driver"
+	default y
+	depends on DT_HAS_WCH_IWDG_ENABLED
+	help
+	  Enable the Independent Watchdog (IWDG) driver for CH32V00x SOCs.
