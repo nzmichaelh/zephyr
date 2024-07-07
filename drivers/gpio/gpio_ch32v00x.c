@@ -123,7 +123,7 @@ static int gpio_ch32v00x_init(const struct device *dev)
 	static struct gpio_ch32v00x_data gpio_ch32v00x_##idx##_data;                               \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(idx, gpio_ch32v00x_init, NULL, &gpio_ch32v00x_##idx##_data,          \
-			      &gpio_ch32v00x_##idx##_config, POST_KERNEL,                          \
+			      &gpio_ch32v00x_##idx##_config, PRE_KERNEL_1,                         \
 			      CONFIG_GPIO_INIT_PRIORITY, &gpio_ch32v00x_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(GPIO_CH32V00X_INIT)
