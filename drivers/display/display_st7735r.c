@@ -24,7 +24,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(display_st7735r, CONFIG_DISPLAY_LOG_LEVEL);
 
-#define ST7735R_RESET_TIME	1
+#define ST7735R_RESET_TIME      1
 #define ST7735R_EXIT_SLEEP_TIME K_MSEC(120)
 
 #define ST7735R_PIXEL_SIZE 2u
