@@ -14,6 +14,10 @@ LOG_MODULE_REGISTER(spi_bitbang);
 #include <zephyr/drivers/spi.h>
 #include "spi_context.h"
 
+/* Expands to 1 if the node has no MISO GPIOs */
+#define _MISO_PRESENT(n)          (DT_INST_PROP_LEN_OR(n, miso_gpios, 0) != 0) |
+#define SPI_BITBANG_MISO_REQUIRED DT_INST_FOREACH_STATUS_OKAY(_MISO_PRESENT) 0
+
 struct spi_bitbang_data {
 	struct spi_context ctx;
 	int16_t wait_us;
@@ -26,7 +30,9 @@ struct spi_bitbang_data {
 struct spi_bitbang_config {
 	struct gpio_dt_spec clk_gpio;
 	struct gpio_dt_spec mosi_gpio;
+#if SPI_BITBANG_MISO_REQUIRED
 	struct gpio_dt_spec miso_gpio;
+#endif
 };
 
 static int spi_bitbang_configure(const struct spi_bitbang_config *info,
@@ -107,10 +113,11 @@ static int spi_bitbang_transceive(const struct device *dev,
 		if (info->mosi_gpio.port) {
 			mosi = &info->mosi_gpio;
 		}
-
+#if SPI_BITBANG_MISO_REQUIRED
 		if (info->miso_gpio.port) {
 			miso = &info->miso_gpio;
 		}
+#endif
 	}
 
 	if (info->mosi_gpio.port) {
@@ -286,6 +293,7 @@ int spi_bitbang_init(const struct device *dev)
 		}
 	}
 
+#if SPI_BITBANG_MISO_REQUIRED
 	if (config->miso_gpio.port != NULL) {
 		if (!gpio_is_ready_dt(&config->miso_gpio)) {
 			LOG_ERR("GPIO port for miso pin is not ready");
@@ -299,6 +307,7 @@ int spi_bitbang_init(const struct device *dev)
 			return rc;
 		}
 	}
+#endif
 
 	rc = spi_context_cs_configure_all(&data->ctx);
 	if (rc < 0) {
@@ -309,12 +318,17 @@ int spi_bitbang_init(const struct device *dev)
 	return 0;
 }
 
+#if SPI_BITBANG_MISO_REQUIRED
+#define SPI_BITBANG_INIT_MISO(inst) .miso_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, miso_gpios, {0}),
+#else
+#define SPI_BITBANG_INIT_MISO(inst)
+#endif
+
 #define SPI_BITBANG_INIT(inst)                                                                     \
 	static const struct spi_bitbang_config spi_bitbang_config_##inst = {                       \
 		.clk_gpio = GPIO_DT_SPEC_INST_GET(inst, clk_gpios),                                \
 		.mosi_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, mosi_gpios, {0}),                      \
-		.miso_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, miso_gpios, {0}),                      \
-	};                                                                                         \
+		SPI_BITBANG_INIT_MISO(inst)};                                                      \
                                                                                                    \
 	static struct spi_bitbang_data spi_bitbang_data_##inst = {                                 \
 		SPI_CONTEXT_INIT_LOCK(spi_bitbang_data_##inst, ctx),                               \
