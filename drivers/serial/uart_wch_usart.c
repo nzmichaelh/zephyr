@@ -35,13 +35,16 @@ static int usart_wch_init(const struct device *dev)
 	uint32_t div;
 	int err;
 
+	GPIOD->CFGLR &= ~(0xf << (4 * 5));
+	GPIOD->CFGLR |= (GPIO_Speed_10MHz | 8) << (4 * 5);
+
+	clock_control_on(config->clock_dev, clock_sys);
+
 	err = clock_control_get_rate(config->clock_dev, clock_sys, &clock_rate);
 	if (err != 0) {
 		return err;
 	}
 	div = (clock_rate + config->current_speed / 2) / config->current_speed;
-
-	clock_control_on(config->clock_dev, clock_sys);
 
 	switch (config->parity) {
 	case UART_CFG_PARITY_NONE:
