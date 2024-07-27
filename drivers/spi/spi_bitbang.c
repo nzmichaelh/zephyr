@@ -30,16 +30,14 @@ struct spi_bitbang_config {
 };
 
 static int spi_bitbang_configure(const struct spi_bitbang_config *info,
-			    struct spi_bitbang_data *data,
-			    const struct spi_config *config)
+				 struct spi_bitbang_data *data, const struct spi_config *config)
 {
 	if (config->operation & SPI_OP_MODE_SLAVE) {
 		LOG_ERR("Slave mode not supported");
 		return -ENOTSUP;
 	}
 
-	if (config->operation & (SPI_TRANSFER_LSB | SPI_LINES_DUAL
-			| SPI_LINES_QUAD)) {
+	if (config->operation & (SPI_TRANSFER_LSB | SPI_LINES_DUAL | SPI_LINES_QUAD)) {
 		LOG_ERR("Unsupported configuration");
 		return -ENOTSUP;
 	}
@@ -68,10 +66,71 @@ static int spi_bitbang_configure(const struct spi_bitbang_config *info,
 	return 0;
 }
 
-static int spi_bitbang_transceive(const struct device *dev,
-			      const struct spi_config *spi_cfg,
-			      const struct spi_buf_set *tx_bufs,
-			      const struct spi_buf_set *rx_bufs)
+int spi_bitbang_transmit(const struct device *dev, const struct spi_config *spi_cfg,
+			 const struct spi_buf_set *tx_bufs)
+{
+	const struct spi_bitbang_config *info = dev->config;
+	const struct gpio_dt_spec *mosi = &info->mosi_gpio;
+	const struct device *port = mosi->port;
+	struct spi_bitbang_data *data = dev->data;
+	struct spi_context *ctx = &data->ctx;
+	gpio_port_pins_t clock_bit = (1 << info->clk_gpio.pin);
+	gpio_port_pins_t mosi_bit = (1 << mosi->pin);
+	gpio_port_pins_t mask = clock_bit | mosi_bit;
+	gpio_port_pins_t invert = ((const struct gpio_driver_data *)port->data)->invert & mask;
+	gpio_port_pins_t mosi_low = (invert & mosi_bit);
+	gpio_port_pins_t mosi_high = mosi_low ^ mosi_bit;
+	gpio_port_pins_t clock_low = (invert & mosi_bit);
+	gpio_port_pins_t clock_high = clock_low ^ clock_bit;
+	bool cpol = (SPI_MODE_GET(spi_cfg->operation) & SPI_MODE_CPOL) != 0;
+	bool cpha = (SPI_MODE_GET(spi_cfg->operation) & SPI_MODE_CPHA) != 0;
+	size_t i;
+	int err;
+
+	err = gpio_pin_configure_dt(mosi, GPIO_OUTPUT_INACTIVE);
+	if (err < 0) {
+		LOG_ERR("Couldn't configure MOSI pin: %d", err);
+		return err;
+	}
+
+	if (cpha != cpol) {
+		clock_low ^= clock_bit;
+		clock_high ^= clock_bit;
+	}
+
+	gpio_port_set_masked_raw(port, mask, cpha ? clock_high : clock_low);
+	spi_context_cs_control(ctx, true);
+
+	if (cpha) {
+		gpio_port_set_masked_raw(port, mask, clock_low);
+	}
+
+	for (i = 0; i < tx_bufs->count; i++) {
+		const struct spi_buf *buffer = &tx_bufs->buffers[i];
+		const uint8_t *p = buffer->buf;
+		size_t j;
+
+		for (j = 0; j < buffer->len; j++) {
+			uint8_t w = *p++;
+			int bit;
+			for (bit = 0; bit < 8; bit++) {
+				uint32_t mosi_level = ((w & 0x80) != 0) ? mosi_high : mosi_low;
+				gpio_port_set_masked_raw(port, mask, mosi_level | clock_low);
+				w <<= 1;
+				gpio_port_set_masked_raw(port, mask, mosi_level | clock_high);
+			}
+		}
+	}
+
+	spi_context_cs_control(ctx, false);
+	spi_context_complete(ctx, dev, 0);
+
+	return 0;
+}
+
+static int spi_bitbang_transceive(const struct device *dev, const struct spi_config *spi_cfg,
+				  const struct spi_buf_set *tx_bufs,
+				  const struct spi_buf_set *rx_bufs)
 {
 	const struct spi_bitbang_config *info = dev->config;
 	struct spi_bitbang_data *data = dev->data;
@@ -84,6 +143,11 @@ static int spi_bitbang_transceive(const struct device *dev,
 	rc = spi_bitbang_configure(info, data, spi_cfg);
 	if (rc < 0) {
 		return rc;
+	}
+
+	if (rx_bufs == NULL && info->mosi_gpio.port == info->clk_gpio.port && data->bits == 8 &&
+	    data->wait_us <= 1 && (spi_cfg->operation & (SPI_MODE_LOOP | SPI_HALF_DUPLEX)) == 0) {
+		return spi_bitbang_transmit(dev, spi_cfg, tx_bufs);
 	}
 
 	if (spi_cfg->operation & SPI_HALF_DUPLEX) {
@@ -229,18 +293,16 @@ static int spi_bitbang_transceive(const struct device *dev,
 }
 
 #ifdef CONFIG_SPI_ASYNC
-static int spi_bitbang_transceive_async(const struct device *dev,
-				    const struct spi_config *spi_cfg,
-				    const struct spi_buf_set *tx_bufs,
-				    const struct spi_buf_set *rx_bufs,
-				    struct k_poll_signal *async)
+static int spi_bitbang_transceive_async(const struct device *dev, const struct spi_config *spi_cfg,
+					const struct spi_buf_set *tx_bufs,
+					const struct spi_buf_set *rx_bufs,
+					struct k_poll_signal *async)
 {
 	return -ENOTSUP;
 }
 #endif
 
-int spi_bitbang_release(const struct device *dev,
-			  const struct spi_config *config)
+int spi_bitbang_release(const struct device *dev, const struct spi_config *config)
 {
 	struct spi_bitbang_data *data = dev->data;
 	struct spi_context *ctx = &data->ctx;
@@ -278,8 +340,7 @@ int spi_bitbang_init(const struct device *dev)
 			LOG_ERR("GPIO port for mosi pin is not ready");
 			return -ENODEV;
 		}
-		rc = gpio_pin_configure_dt(&config->mosi_gpio,
-				GPIO_OUTPUT_INACTIVE);
+		rc = gpio_pin_configure_dt(&config->mosi_gpio, GPIO_OUTPUT_INACTIVE);
 		if (rc < 0) {
 			LOG_ERR("Couldn't configure mosi pin; (%d)", rc);
 			return rc;
@@ -291,7 +352,6 @@ int spi_bitbang_init(const struct device *dev)
 			LOG_ERR("GPIO port for miso pin is not ready");
 			return -ENODEV;
 		}
-
 
 		rc = gpio_pin_configure_dt(&config->miso_gpio, GPIO_INPUT);
 		if (rc < 0) {
