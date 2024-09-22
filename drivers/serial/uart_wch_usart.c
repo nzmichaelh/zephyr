@@ -15,9 +15,9 @@
 
 struct usart_wch_config {
 	USART_TypeDef *regs;
+	const struct device *clock_dev;
 	uint32_t current_speed;
 	uint8_t parity;
-	const struct device *clock_dev;
 	uint8_t clock_id;
 	const struct pinctrl_dev_config *pin_cfg;
 };
@@ -34,9 +34,6 @@ static int usart_wch_init(const struct device *dev)
 	clock_control_subsys_t clock_sys = (clock_control_subsys_t *)(uintptr_t)config->clock_id;
 	uint32_t div;
 	int err;
-
-	GPIOD->CFGLR &= ~(0xf << (4 * 5));
-	GPIOD->CFGLR |= (GPIO_Speed_10MHz | 8) << (4 * 5);
 
 	clock_control_on(config->clock_dev, clock_sys);
 
@@ -63,6 +60,11 @@ static int usart_wch_init(const struct device *dev)
 	regs->CTLR1 = ctlr1;
 	regs->CTLR2 = 0;
 	regs->CTLR3 = 0;
+
+	err = pinctrl_apply_state(config->pin_cfg, PINCTRL_STATE_DEFAULT);
+	if (err != 0) {
+		return err;
+	}
 
 	return 0;
 }
