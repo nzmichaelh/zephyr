@@ -9,7 +9,7 @@
 #include "wch_ch32v003evt-pinctrl.dtsi"
 
 / {
-	model = "ch32v003evt";
+	model = "nanoCH32V003";
 	compatible = "wch,ch32v003";
 
 	chosen {
@@ -22,13 +22,13 @@
 	leds {
 		compatible = "gpio-leds";
 
-		red_led: led0 {
-			gpios = <&gpiod 4 GPIO_ACTIVE_HIGH>;
+		blue_led: led0 {
+			gpios = <&gpiod 6 GPIO_ACTIVE_HIGH>;
 		};
 	};
 
 	aliases {
-		led0 = &red_led;
+		led0 = &blue_led;
 	};
 };
 
