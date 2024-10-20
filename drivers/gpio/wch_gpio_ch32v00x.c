@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <errno.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/gpio/gpio_utils.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/irq.h>
 
 #include <ch32_gpio.h>
@@ -29,21 +29,32 @@ static int gpio_ch32v00x_configure(const struct device *dev, gpio_pin_t pin, gpi
 {
 	const struct gpio_ch32v00x_config *config = dev->config;
 	GPIO_TypeDef *regs = config->regs;
-	uint32_t cfg = regs->CFGLR & ~(0x0F << (4 * pin));
+	uint32_t cnf_mode;
+	uint32_t bshr = 0;
 
 	if ((flags & GPIO_OUTPUT) != 0) {
-		cfg |= (0x01 << (4 * pin));
+		cnf_mode = 0x01;
 		if ((flags & GPIO_OUTPUT_INIT_HIGH) != 0) {
-			regs->BSHR = 1 << pin;
+			bshr = 1 << pin;
 		} else if ((flags & GPIO_OUTPUT_INIT_LOW) != 0) {
-			regs->BSHR = 1 << (16 + pin);
+			bshr = 1 << (16 + pin);
 		}
 	} else if ((flags & GPIO_INPUT) != 0) {
-		cfg |= (0x10 << (4 * pin));
+		if ((flags & GPIO_PULL_UP) != 0) {
+			cnf_mode = 0x08;
+			bshr = 1 << pin;
+		} else if ((flags & GPIO_PULL_DOWN) != 0) {
+			cnf_mode = 0x08;
+			bshr = 1 << (16 + pin);
+		} else {
+			cnf_mode = 0x04;
+		}
 	} else {
-		cfg |= (0x00 << (4 * pin));
+		cnf_mode = 0x00;
 	}
-	regs->CFGLR = cfg;
+
+	regs->CFGLR = (regs->CFGLR & ~(0x0F << (4 * pin))) | (cnf_mode << (4 * pin));
+	regs->BSHR = bshr;
 
 	return 0;
 }
