@@ -21,7 +21,4 @@ config ISR_STACK_SIZE
 config CLOCK_CONTROL
 	default y
 
-config PINCTRL
-	default y
-
 endif # SOC_CH32V003
