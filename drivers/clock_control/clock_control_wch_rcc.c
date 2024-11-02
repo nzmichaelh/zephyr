@@ -12,11 +12,33 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/clock_control.h>
+#include <zephyr/sys/util_macro.h>
 
 #include <ch32_rcc.h>
 
 #define WCH_RCC_CLOCK_ID_OFFSET(id) (((id) >> 5) & 0xFF)
 #define WCH_RCC_CLOCK_ID_BIT(id)    ((id) & 0x1F)
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pll)) && DT_NODE_HAS_PROP(DT_NODELABEL(pll), clocks)
+#define DT_PLL_CLOCKS_CTRL DT_CLOCKS_CTLR(DT_NODELABEL(pll))
+#if DT_SAME_NODE(DT_PLL_CLOCKS_CTRL, DT_NODELABEL(clk_hsi))
+#define WCH_RCC_PLL_SRC_IS_HSI 1
+#endif
+#if DT_SAME_NODE(DT_PLL_CLOCKS_CTRL, DT_NODELABEL(clk_hse))
+#define WCH_RCC_PLL_SRC_IS_HSE 1
+#endif
+#endif
+
+#define DT_RCC_CLOCKS_CTRL DT_CLOCKS_CTLR(DT_NODELABEL(rcc))
+#if DT_SAME_NODE(DT_RCC_CLOCKS_CTRL, DT_NODELABEL(pll))
+#define WCH_RCC_SRC_IS_PLL 1
+#endif
+#if DT_SAME_NODE(DT_RCC_CLOCKS_CTRL, DT_NODELABEL(clk_hsi))
+#define WCH_RCC_SRC_IS_HSI 1
+#endif
+#if DT_SAME_NODE(DT_RCC_CLOCKS_CTRL, DT_NODELABEL(clk_hse))
+#define WCH_RCC_SRC_IS_HSE 1
+#endif
 
 struct clock_control_wch_rcc_config {
 	RCC_TypeDef *regs;
@@ -69,6 +91,55 @@ static struct clock_control_driver_api clock_control_wch_rcc_api = {
 
 static int clock_control_wch_rcc_init(const struct device *dev)
 {
+	if (IS_ENABLED(CONFIG_DT_HAS_WCH_CH32V00X_PLL_CLOCK_ENABLED)) {
+		/* Disable the PLL before potentially changing the input clocks. */
+		RCC->CTLR &= ~RCC_PLLON;
+	}
+
+	/* Always enable the LSI. */
+	RCC->RSTSCKR |= RCC_LSION;
+	while ((RCC->RSTSCKR & RCC_LSIRDY) == 0) {
+	}
+
+	if (IS_ENABLED(CONFIG_DT_HAS_WCH_CH32V00X_HSI_CLOCK_ENABLED)) {
+		RCC->CTLR |= RCC_HSION;
+		while ((RCC->CTLR & RCC_HSIRDY) == 0) {
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_DT_HAS_WCH_CH32V00X_HSE_CLOCK_ENABLED)) {
+		RCC->CTLR |= RCC_HSEON;
+		while ((RCC->CTLR & RCC_HSERDY) == 0) {
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_DT_HAS_WCH_CH32V00X_PLL_CLOCK_ENABLED)) {
+		if (IS_ENABLED(WCH_RCC_PLL_SRC_IS_HSE)) {
+			RCC->CFGR0 |= RCC_PLLSRC;
+		} else if (IS_ENABLED(WCH_RCC_PLL_SRC_IS_HSI)) {
+			RCC->CFGR0 &= ~RCC_PLLSRC;
+		}
+		RCC->CTLR |= RCC_PLLON;
+		while ((RCC->CTLR & RCC_PLLRDY) == 0) {
+		}
+	}
+
+	if (IS_ENABLED(WCH_RCC_SRC_IS_HSI)) {
+		RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_HSI;
+	} else if (IS_ENABLED(WCH_RCC_SRC_IS_HSE)) {
+		RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_HSE;
+	} else if (IS_ENABLED(WCH_RCC_SRC_IS_PLL)) {
+		RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_PLL;
+	}
+	RCC->CTLR |= RCC_CSSON;
+
+	/* Clear the interrupt flags. */
+	RCC->INTR = RCC_CSSC | RCC_PLLRDYC | RCC_HSERDYC | RCC_LSIRDYC;
+	/* HCLK = SYSCLK = APB1 */
+	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_HPRE) | RCC_HPRE_DIV1;
+	/* Set the Flash to 0 wait state */
+	FLASH->ACTLR = (FLASH->ACTLR & ~FLASH_ACTLR_LATENCY) | FLASH_ACTLR_LATENCY_1;
+
 	return 0;
 }
 
