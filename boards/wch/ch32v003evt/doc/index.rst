@@ -1,4 +1,4 @@
-.. zephyr:board:: wch_ch32v003evt
+.. zephyr:board:: ch32v003evt
 
 Overview
 ********
@@ -22,7 +22,7 @@ external crystal and runs at 48 MHz.
 Supported Features
 ==================
 
-The ``wch_ch32v003evt`` board target supports the following hardware features:
+The ``ch32v003evt`` board target supports the following hardware features:
 
 +-----------+------------+----------------------+
 | Interface | Controller | Driver/Component     |
@@ -53,10 +53,10 @@ LED
 Programming and Debugging
 *************************
 
-Applications for the ``wch_ch32v003evt`` board target can be built and flashed
+Applications for the ``ch32v003evt`` board target can be built and flashed
 in the usual way (see :ref:`build_an_application` and :ref:`application_run`
 for more details); however, an external programmer is required since the board
-does not have any on-board debug IC.
+does not have any built-in debug support.
 
 The following pins of the external programmer must be connected to the
 following pins on the PCB (see image):
@@ -76,7 +76,7 @@ Here is an example for the :zephyr:code-sample:`blinky` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/basic/blinky
-   :board: wch_ch32v003evt
+   :board: ch32v003evt
    :goals: build flash
 
 Debugging
@@ -96,7 +96,7 @@ working properly with Zephyr:
 
 You can build and flash the examples to make sure Zephyr is running
 correctly on your board. The button and LED definitions can be found
-in :zephyr_file:`boards/wch/ch32v003evt/wch_ch32v003evt.dts`.
+in :zephyr_file:`boards/wch/ch32v003evt/ch32v003evt.dts`.
 
 References
 **********
