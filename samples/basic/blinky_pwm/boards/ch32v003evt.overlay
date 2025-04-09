@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2025 Michael Hope <michaelh@juju.nz>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	leds {
+		status = "disabled";
+	};
+};
+
+&pwmleds {
+	status = "okay";
+};
+
+&tim2 {
+	status = "okay";
+	prescaler = <4800>;
+	pinctrl-0 = <&red_pwm_pinctrl>;
+	pinctrl-names = "default";
+};
