@@ -8,6 +8,7 @@
 #include <wch/ch32v203/ch32v203c8t.dtsi>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
 #include "bluepillplus_ch32v203-pinctrl.dtsi"
 
 / {
@@ -30,6 +31,16 @@
 		};
 	};
 
+	pwmleds: pwmleds {
+		compatible = "pwm-leds";
+		status = "disabled";
+
+		blue_pwm: blue_pwm0 {
+			pwms = <&tim4 3 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+			label = "Blue LED";
+		};
+	};
+
 	buttons {
 		compatible = "gpio-keys";
 
@@ -41,6 +52,7 @@
 
 	aliases {
 		led0 = &blue_led;
+		pwm-led0 = &blue_pwm;
 		sw0 = &mode;
 	};
 };
