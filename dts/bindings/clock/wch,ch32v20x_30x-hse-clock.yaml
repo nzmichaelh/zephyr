@@ -1,0 +1,8 @@
+# Copyright (c) 2024 Google LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+description: WCH CH32V20x/30x High Speed External (HSE) clock
+
+compatible: "wch,ch32v20x_30x-hse-clock"
+
+include: [fixed-clock.yaml]
