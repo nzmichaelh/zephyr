@@ -15,14 +15,14 @@
 	clocks {
 		clk_hse: clk-hse {
 			#clock-cells = <0>;
-			compatible = "wch,ch32v00x-hse-clock";
+			compatible = "wch,ch32v20x_30x-hse-clock";
 			clock-frequency = <DT_FREQ_M(8)>;
 			status = "disabled";
 		};
 
 		clk_hsi: clk-hsi {
 			#clock-cells = <0>;
-			compatible = "wch,ch32v00x-hsi-clock";
+			compatible = "wch,ch32v20x_30x-hsi-clock";
 			clock-frequency = <DT_FREQ_M(8)>;
 			status = "disabled";
 		};
