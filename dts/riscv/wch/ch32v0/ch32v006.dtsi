@@ -172,6 +172,7 @@
 			interrupt-parent = <&pfic>;
 			interrupts = <38>;
 			interrupt-names = "global";
+			channels = <4>;
 			status = "disabled";
 
 			pwm2: pwm {
