@@ -1,0 +1,18 @@
+# Copyright (c) 2025 Michael Hope <michaelh@juju.nz>
+# SPDX-License-Identifier: Apache-2.0
+
+config COUNTER_WCH_GPTM
+	bool "WCH General-purpose Timer (GPTM) as a counter"
+	default y
+	depends on DT_HAS_WCH_GPTM_ENABLED
+	help
+	  Counter driver for the WCH GPTM, such as TIM2 on the CH32V003.
+
+
+config COUNTER_WCH_GPTM_ALARMS
+	bool "Alarm support"
+	depends on COUNTER_WCH_GPTM
+	default y
+	help
+	  Support setting alarms. Uses approximately 200 bytes of flash and
+	  32 bytes of RAM.
