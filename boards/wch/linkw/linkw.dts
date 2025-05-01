@@ -76,12 +76,8 @@
 	status = "okay";
 };
 
-&clk_hsi {
-	status = "okay";
-};
-
 &pll {
-	clocks = <&clk_hsi>;
+	clocks = <&clk_hse>;
 	status = "okay";
 };
 
