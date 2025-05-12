@@ -1,0 +1,10 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright (c) 2025 Michael Hope <michaelh@juju.nz>
+ */
+
+&tim2 {
+	status = "okay";
+	prescaler = <2929>;
+};
