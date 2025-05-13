@@ -17,6 +17,12 @@ properties:
   clocks:
     required: true
 
+  resolution:
+    type: int
+    required: true
+    description: |
+      Converter resolution in bits
+
   vref-mv:
     type: int
     default: 3300

@@ -17,6 +17,7 @@ struct adc_ch32v00x_config {
 	const struct pinctrl_dev_config *pin_cfg;
 	const struct device *clock_dev;
 	uint8_t clock_id;
+	uint8_t resolution;
 };
 
 static int adc_ch32v00x_channel_setup(const struct device *dev,
@@ -55,7 +56,7 @@ static int adc_ch32v00x_read(const struct device *dev, const struct adc_sequence
 	if (sequence->options != NULL) {
 		return -ENOTSUP;
 	}
-	if (sequence->resolution != 10) {
+	if (sequence->resolution != config->resolution) {
 		return -EINVAL;
 	}
 	if (sequence->oversampling != 0) {
@@ -152,6 +153,7 @@ static int adc_ch32v00x_init(const struct device *dev)
 		.pin_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                      \
 		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                                \
 		.clock_id = DT_INST_CLOCKS_CELL(n, id),                                            \
+		.resolution = DT_INST_PROP(n, resolution),                                         \
 	};                                                                                         \
                                                                                                    \
 	DEVICE_DT_INST_DEFINE(n, adc_ch32v00x_init, NULL, NULL, &adc_ch32v00x_config_##n,          \

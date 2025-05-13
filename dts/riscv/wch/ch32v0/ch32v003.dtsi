@@ -181,6 +181,7 @@
 			interrupt-parent = <&pfic>;
 			interrupts = <29>;
 			#io-channel-cells = <1>;
+			resolution = <10>;
 			status = "disabled";
 		};
 	};
