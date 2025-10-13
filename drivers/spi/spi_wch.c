@@ -19,8 +19,7 @@ LOG_MODULE_REGISTER(spi_wch);
 
 #include <hal_ch32fun.h>
 
-#define SPI_CTLR1_LSBFIRST BIT(7)
-#define SPI_CTLR1_BR_POS   3
+#define SPI_CTLR1_BR_POS 3
 
 struct spi_wch_config {
 	SPI_TypeDef *regs;
@@ -131,14 +130,90 @@ static int spi_wch_configure(const struct device *dev, const struct spi_config *
 	return 0;
 }
 
+/* Fast path that transmits a buf */
+static void spi_wch_tx(SPI_TypeDef *regs, const uint8_t *tx, size_t len)
+{
+	const uint8_t *txend = tx + len;
+	uint8_t ch;
+
+	while (tx != txend) {
+		ch = *tx++;
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = ch;
+	}
+
+	while ((regs->STATR & SPI_STATR_BSY) != 0U) {
+	}
+	/* Drop the unused receive data, if any. */
+	(void)regs->DATAR;
+}
+
+/* Fast path that reads into a buf */
+static void spi_wch_rx(SPI_TypeDef *regs, uint8_t *rx, size_t len)
+{
+	uint8_t *rxend = rx + len;
+	uint8_t ch;
+
+	if (rxend <= rx) {
+		return;
+	}
+	rxend--;
+
+	regs->DATAR = 0;
+	while (rx != rxend) {
+		while ((regs->STATR & SPI_STATR_RXNE) == 0U) {
+		}
+		ch = regs->DATAR;
+		regs->DATAR = 0;
+		*rx++ = ch;
+	}
+
+	while ((regs->STATR & SPI_STATR_RXNE) == 0U) {
+	}
+	*rx = regs->DATAR;
+}
+
+/* Fast path that writes and reads bufs of the same length */
+static void spi_wch_txrx(SPI_TypeDef *regs, const struct spi_buf *tx_buf,
+			 const struct spi_buf *rx_buf)
+{
+	const uint8_t *tx = tx_buf->buf;
+	const uint8_t *txend = tx + tx_buf->len;
+	uint8_t *rx = rx_buf->buf;
+	uint8_t *rxend = rx + rx_buf->len;
+
+	while (tx != txend && rx != rxend) {
+		regs->DATAR = *tx++;
+		while ((regs->STATR & SPI_STATR_RXNE) == 0U) {
+		}
+		*rx++ = regs->DATAR;
+	}
+	spi_wch_rx(regs, rx, rxend - rx);
+	spi_wch_tx(regs, tx, rxend - tx);
+}
+
 static int spi_wch_transceive(const struct device *dev, const struct spi_config *config,
 			      const struct spi_buf_set *tx_bufs, const struct spi_buf_set *rx_bufs)
 {
 	const struct spi_wch_config *cfg = dev->config;
 	struct spi_wch_data *data = dev->data;
 	SPI_TypeDef *regs = cfg->regs;
+	size_t tx_count = 0;
+	size_t rx_count = 0;
+	const struct spi_buf *tx = NULL;
+	const struct spi_buf *rx = NULL;
 	int err;
-	uint8_t rx;
+
+	if (tx_bufs != NULL) {
+		tx = tx_bufs->buffers;
+		tx_count = tx_bufs->count;
+	}
+
+	if (rx_bufs != NULL) {
+		rx = rx_bufs->buffers;
+		rx_count = rx_bufs->count;
+	}
 
 	spi_context_lock(&data->ctx, false, NULL, NULL, config);
 
@@ -147,31 +222,34 @@ static int spi_wch_transceive(const struct device *dev, const struct spi_config 
 		goto done;
 	}
 
-	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
-
 	spi_context_cs_control(&data->ctx, true);
 
 	/* Start SPI *AFTER* setting CS */
 	regs->CTLR1 |= SPI_CTLR1_SPE;
 
-	while (spi_context_tx_on(&data->ctx) || spi_context_rx_on(&data->ctx)) {
-		if (spi_context_tx_buf_on(&data->ctx)) {
-			while ((regs->STATR & SPI_STATR_TXE) == 0U) {
-			}
-			regs->DATAR = *(uint8_t *)(data->ctx.tx_buf);
+	while (tx_count != 0 && rx_count != 0) {
+		if (tx->buf == NULL) {
+			spi_wch_rx(regs, rx->buf, rx->len);
+		} else if (rx->buf == NULL) {
+			spi_wch_tx(regs, tx->buf, tx->len);
 		} else {
-			while ((regs->STATR & SPI_STATR_TXE) == 0U) {
-			}
-			regs->DATAR = 0;
+			spi_wch_txrx(regs, tx, rx);
 		}
-		spi_context_update_tx(&data->ctx, 1, 1);
-		while ((regs->STATR & SPI_STATR_RXNE) == 0U) {
-		}
-		rx = regs->DATAR;
-		if (spi_context_rx_buf_on(&data->ctx)) {
-			*data->ctx.rx_buf = rx;
-		}
-		spi_context_update_rx(&data->ctx, 1, 1);
+
+		tx++;
+		tx_count--;
+		rx++;
+		rx_count--;
+	}
+
+	for (; tx_count != 0; tx_count--) {
+		spi_wch_tx(regs, tx->buf, tx->len);
+		tx++;
+	}
+
+	for (; rx_count != 0; rx_count--) {
+		spi_wch_rx(regs, rx->buf, rx->len);
+		rx++;
 	}
 
 done:
