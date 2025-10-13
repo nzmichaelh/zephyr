@@ -133,11 +133,28 @@ static int spi_wch_configure(const struct device *dev, const struct spi_config *
 /* Fast path that transmits a buf */
 static void spi_wch_tx(SPI_TypeDef *regs, const uint8_t *tx, size_t len)
 {
-	const uint8_t *txend = tx + len;
 	uint8_t ch;
 
-	while (tx != txend) {
-		ch = *tx++;
+	/*
+	 * Unrolling increases the throughput from 2.17 MiB/s to 2.75 MiB/s, i.e. 96 % of
+	 * theoretical.
+	 */
+	for (; len >= 2; len -= 2) {
+		ch = tx[0];
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = ch;
+		/* See the comment below about overlapping. */
+		compiler_barrier();
+		ch = tx[1];
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = ch;
+		compiler_barrier();
+		tx += 2;
+	}
+	if (len != 0) {
+		ch = tx[0];
 		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
 		}
 		regs->DATAR = ch;
@@ -152,23 +169,25 @@ static void spi_wch_tx(SPI_TypeDef *regs, const uint8_t *tx, size_t len)
 /* Fast path that reads into a buf */
 static void spi_wch_rx(SPI_TypeDef *regs, uint8_t *rx, size_t len)
 {
-	uint8_t *rxend = rx + len;
 	uint8_t ch;
 
-	if (rxend <= rx) {
+	if (len <= 0) {
 		return;
 	}
-	rxend--;
 
 	regs->DATAR = 0;
-	while (rx != rxend) {
+	for (len--; len > 0; len--) {
 		while ((regs->STATR & SPI_STATR_RXNE) == 0U) {
 		}
 		ch = regs->DATAR;
 		regs->DATAR = 0;
+		/*
+		 * Ensure DATAR is written so the next transmit happens concurrently with the store
+		 * and branch.
+		 */
+		compiler_barrier();
 		*rx++ = ch;
 	}
-
 	while ((regs->STATR & SPI_STATR_RXNE) == 0U) {
 	}
 	*rx = regs->DATAR;
