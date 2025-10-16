@@ -97,3 +97,7 @@
 &iwdg {
 	status = "okay";
 };
+
+&esig {
+	status = "okay";
+};
