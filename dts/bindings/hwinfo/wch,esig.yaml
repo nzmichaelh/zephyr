@@ -1,0 +1,12 @@
+# Copyright (c) 2025 Michael Hope
+# SPDX-License-Identifier: Apache-2.0
+
+description: WCH CH32V Electronic Signature (ESIG)
+
+compatible: "wch,esig"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
