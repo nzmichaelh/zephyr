@@ -19,3 +19,14 @@ properties:
 
   pinctrl-names:
     required: true
+
+  dmas:
+    description: |
+      TX and RX DMA specifiers. Each specifier is a reference to the DMA
+      controller and the channel number. The channel number is fixed
+      by the hardware. Note that Zephyr used zero based channels, while
+      the datasheet uses one based.
+
+  dma-names:
+    description: |
+      Must be "tx" and "rx" and match the order given for `dmas`.

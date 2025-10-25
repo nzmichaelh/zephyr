@@ -7,3 +7,10 @@ config SPI_WCH
 	depends on DT_HAS_WCH_SPI_ENABLED
 	help
 	  Enable the SPI peripherals on CH32s
+
+config SPI_WCH_DMA
+	bool "WCH SPI COntroller with DMA acceleration"
+	depends on SPI_WCH
+	select DMA
+	help
+	  Use direct memory access (DMA) for synchronous transfers.
