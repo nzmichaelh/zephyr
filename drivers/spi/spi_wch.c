@@ -13,6 +13,7 @@ LOG_MODULE_REGISTER(spi_wch);
 #include <errno.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/spi.h>
+#include <zephyr/drivers/dma.h>
 #include <zephyr/drivers/spi/rtio.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/clock_control.h>
@@ -20,12 +21,33 @@ LOG_MODULE_REGISTER(spi_wch);
 #include <hal_ch32fun.h>
 
 #define SPI_CTLR1_BR_POS 3
+#define DMA_WCH_MAX_CHAN 11
+
+struct dma_wch_chan_regs {
+	volatile uint32_t CFGR;
+	volatile uint32_t CNTR;
+	volatile uint32_t PADDR;
+	volatile uint32_t MADDR;
+	volatile uint32_t reserved1;
+};
+
+struct dma_wch_regs {
+	DMA_TypeDef base;
+	struct dma_wch_chan_regs channels[DMA_WCH_MAX_CHAN];
+	DMA_TypeDef ext;
+};
 
 struct spi_wch_config {
 	SPI_TypeDef *regs;
 	const struct pinctrl_dev_config *pin_cfg;
 	const struct device *clk_dev;
 	uint8_t clock_id;
+#if defined(CONFIG_SPI_WCH_DMA)
+	const struct device *dma_dev;
+	struct dma_wch_regs *dma_regs;
+	uint8_t tx_channel;
+	uint8_t rx_channel;
+#endif
 };
 
 struct spi_wch_data {
@@ -124,17 +146,71 @@ static int spi_wch_configure(const struct device *dev, const struct spi_config *
 		clock_rate / j);
 #endif
 	regs->CTLR1 |= prescaler << SPI_CTLR1_BR_POS;
+	regs->CTLR2 |= SPI_CTLR2_TXDMAEN | SPI_CTLR2_RXDMAEN;
 
 	data->ctx.config = config;
 
 	return 0;
 }
 
-/* Fast path that transmits a buf */
-static void spi_wch_tx(SPI_TypeDef *regs, const uint8_t *tx, size_t len)
+static int spi_wch_dma_tx(const struct spi_wch_config *cfg, const uint8_t *tx, size_t len)
 {
+	SPI_TypeDef *regs = cfg->regs;
+	struct dma_status stat;
+	int err;
+
+	if (len == 0) {
+		return 0;
+	}
+
+#if 1
+	cfg->dma_regs->channels[cfg->tx_channel].CFGR &= ~DMA_CFGR1_EN;
+	cfg->dma_regs->channels[cfg->tx_channel].MADDR = (uint32_t)tx;
+	cfg->dma_regs->channels[cfg->tx_channel].CNTR = len;
+	cfg->dma_regs->channels[cfg->tx_channel].CFGR |= DMA_CFGR1_EN;
+
+	while ((cfg->dma_regs->base.INTFR & (DMA_TCIF1 << (cfg->tx_channel * 4))) == 0) {
+	}
+
+	cfg->dma_regs->channels[cfg->tx_channel].CFGR &= ~DMA_CFGR1_EN;
+	cfg->dma_regs->base.INTFCR = DMA_CTCIF1 << (cfg->tx_channel * 4);
+
+#else
+	err = dma_reload(cfg->dma_dev, cfg->tx_channel, (uint32_t)tx, (uint32_t)&regs->DATAR, len);
+	if (err < 0) {
+		return err;
+	}
+
+	err = dma_start(cfg->dma_dev, cfg->tx_channel);
+	if (err < 0) {
+		return err;
+	}
+
+	do {
+		err = dma_get_status(cfg->dma_dev, cfg->tx_channel, &stat);
+		if (err < 0) {
+			return err;
+		}
+	} while (stat.busy);
+#endif
+
+	while ((regs->STATR & SPI_STATR_BSY) != 0U) {
+	}
+
+	(void)regs->DATAR;
+
+	return 0;
+}
+
+/* Fast path that transmits a buf */
+static void spi_wch_tx(const struct spi_wch_config *cfg, const uint8_t *tx, size_t len)
+{
+	SPI_TypeDef *regs = cfg->regs;
 	uint8_t ch;
 
+	spi_wch_dma_tx(cfg, tx, len);
+	return;
+#if 0
 	/*
 	 * Unrolling increases the throughput from 2.17 MiB/s to 2.75 MiB/s, i.e. 96 % of
 	 * theoretical.
@@ -164,14 +240,97 @@ static void spi_wch_tx(SPI_TypeDef *regs, const uint8_t *tx, size_t len)
 	}
 	/* Drop the unused receive data, if any. */
 	(void)regs->DATAR;
+#endif
+}
+
+static int spi_wch_dma_rx(const struct spi_wch_config *cfg, uint8_t *rx, size_t len)
+{
+	SPI_TypeDef *regs = cfg->regs;
+	int err;
+
+	if (len == 0) {
+		return 0;
+	}
+	uint32_t start = k_cycle_get_32();
+	int l1 = len;
+
+#if 1
+	cfg->dma_regs->channels[cfg->rx_channel].CFGR &= ~DMA_CFGR1_EN;
+	cfg->dma_regs->channels[cfg->rx_channel].MADDR = (uint32_t)rx;
+	cfg->dma_regs->channels[cfg->rx_channel].CNTR = len;
+
+	regs->DATAR = 0;
+	len--;
+	cfg->dma_regs->channels[cfg->rx_channel].CFGR |= DMA_CFGR1_EN;
+
+#if 1
+	for (; len >= 2; len -= 2) {
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = 0;
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = 0;
+	}
+	if (len != 0) {
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = 0;
+	}
+#else
+	for (; len > 0; len--) {
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = 0;
+	}
+#endif
+
+	cfg->dma_regs->channels[cfg->rx_channel].CFGR &= ~DMA_CFGR1_EN;
+	cfg->dma_regs->base.INTFCR = DMA_CTCIF1 << (cfg->rx_channel * 4);
+	while ((regs->STATR & SPI_STATR_BSY) != 0U) {
+	}
+
+	int32_t took = k_cycle_get_32() - start;
+	printf("%d in %d - %d KiB/s\n", l1, took,
+	       l1 * (CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC / 1024) / took);
+	return 0;
+#else
+	err = dma_reload(cfg->dma_dev, cfg->rx_channel, (uint32_t)&regs->DATAR, (uint32_t)rx, len);
+	if (err < 0) {
+		return err;
+	}
+
+	regs->DATAR = 0;
+	len--;
+
+	err = dma_start(cfg->dma_dev, cfg->rx_channel);
+	if (err < 0) {
+		return err;
+	}
+
+	for (; len != 0; len--) {
+		while ((regs->STATR & SPI_STATR_TXE) == 0U) {
+		}
+		regs->DATAR = 0;
+	}
+	while ((regs->STATR & SPI_STATR_BSY) != 0U) {
+	}
+
+	return dma_stop(cfg->dma_dev, cfg->rx_channel);
+#endif
 }
 
 /* Fast path that reads into a buf */
-static void spi_wch_rx(SPI_TypeDef *regs, uint8_t *rx, size_t len)
+static void spi_wch_rx(const struct spi_wch_config *cfg, uint8_t *rx, size_t len)
 {
+	SPI_TypeDef *regs = cfg->regs;
 	uint8_t ch;
 
 	if (len <= 0) {
+		return;
+	}
+	if (len > 3) {
+		spi_wch_dma_rx(cfg, rx, len);
 		return;
 	}
 
@@ -182,8 +341,8 @@ static void spi_wch_rx(SPI_TypeDef *regs, uint8_t *rx, size_t len)
 		ch = regs->DATAR;
 		regs->DATAR = 0;
 		/*
-		 * Ensure DATAR is written so the next transmit happens concurrently with the store
-		 * and branch.
+		 * Ensure DATAR is written so the next transmit happens concurrently with
+		 * the store and branch.
 		 */
 		compiler_barrier();
 		*rx++ = ch;
@@ -194,9 +353,10 @@ static void spi_wch_rx(SPI_TypeDef *regs, uint8_t *rx, size_t len)
 }
 
 /* Fast path that writes and reads bufs of the same length */
-static void spi_wch_txrx(SPI_TypeDef *regs, const struct spi_buf *tx_buf,
+static void spi_wch_txrx(const struct spi_wch_config *cfg, const struct spi_buf *tx_buf,
 			 const struct spi_buf *rx_buf)
 {
+	SPI_TypeDef *regs = cfg->regs;
 	const uint8_t *tx = tx_buf->buf;
 	const uint8_t *txend = tx + tx_buf->len;
 	uint8_t *rx = rx_buf->buf;
@@ -208,8 +368,8 @@ static void spi_wch_txrx(SPI_TypeDef *regs, const struct spi_buf *tx_buf,
 		}
 		*rx++ = regs->DATAR;
 	}
-	spi_wch_rx(regs, rx, rxend - rx);
-	spi_wch_tx(regs, tx, rxend - tx);
+	spi_wch_rx(cfg, rx, rxend - rx);
+	spi_wch_tx(cfg, tx, rxend - tx);
 }
 
 static int spi_wch_transceive(const struct device *dev, const struct spi_config *config,
@@ -248,11 +408,11 @@ static int spi_wch_transceive(const struct device *dev, const struct spi_config 
 
 	while (tx_count != 0 && rx_count != 0) {
 		if (tx->buf == NULL) {
-			spi_wch_rx(regs, rx->buf, rx->len);
+			spi_wch_rx(cfg, rx->buf, rx->len);
 		} else if (rx->buf == NULL) {
-			spi_wch_tx(regs, tx->buf, tx->len);
+			spi_wch_tx(cfg, tx->buf, tx->len);
 		} else {
-			spi_wch_txrx(regs, tx, rx);
+			spi_wch_txrx(cfg, tx, rx);
 		}
 
 		tx++;
@@ -262,12 +422,12 @@ static int spi_wch_transceive(const struct device *dev, const struct spi_config 
 	}
 
 	for (; tx_count != 0; tx_count--) {
-		spi_wch_tx(regs, tx->buf, tx->len);
+		spi_wch_tx(cfg, tx->buf, tx->len);
 		tx++;
 	}
 
 	for (; rx_count != 0; rx_count--) {
-		spi_wch_rx(regs, rx->buf, rx->len);
+		spi_wch_rx(cfg, rx->buf, rx->len);
 		rx++;
 	}
 
@@ -294,6 +454,45 @@ static int spi_wch_release(const struct device *dev, const struct spi_config *co
 	return 0;
 }
 
+static int spi_wch_init_dma(const struct device *dev)
+{
+	const struct spi_wch_config *cfg = dev->config;
+	SPI_TypeDef *regs = cfg->regs;
+	int err;
+
+	struct dma_block_config tx_block = {
+		.dest_address = (uint32_t)&regs->DATAR,
+		.source_addr_adj = DMA_ADDR_ADJ_INCREMENT,
+		.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE,
+	};
+	struct dma_config tx_config = {
+		.channel_direction = MEMORY_TO_PERIPHERAL,
+		.source_data_size = 1,
+		.dest_data_size = 2,
+		.block_count = 1,
+		.head_block = &tx_block,
+	};
+	struct dma_block_config rx_block = {
+		.source_address = (uint32_t)&regs->DATAR,
+		.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE,
+		.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT,
+	};
+	struct dma_config rx_config = {
+		.channel_direction = PERIPHERAL_TO_MEMORY,
+		.source_data_size = 2,
+		.dest_data_size = 1,
+		.block_count = 1,
+		.head_block = &rx_block,
+	};
+
+	err = dma_config(cfg->dma_dev, cfg->tx_channel, &tx_config);
+	if (err < 0) {
+		return err;
+	}
+
+	return dma_config(cfg->dma_dev, cfg->rx_channel, &rx_config);
+}
+
 static int spi_wch_init(const struct device *dev)
 {
 	int err;
@@ -318,6 +517,11 @@ static int spi_wch_init(const struct device *dev)
 		return err;
 	}
 
+	err = spi_wch_init_dma(dev);
+	if (err < 0) {
+		return err;
+	}
+
 	spi_context_unlock_unconditionally(&data->ctx);
 
 	return 0;
@@ -331,17 +535,31 @@ static DEVICE_API(spi, spi_wch_driver_api) = {
 	.release = spi_wch_release,
 };
 
+#define SPI_WCH_DMA_INIT(n)                                                                        \
+	.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, tx)),                                \
+	.dma_regs = (struct dma_wch_regs *)DT_REG_ADDR(DT_INST_DMAS_CTLR_BY_NAME(n, tx)),          \
+	.tx_channel = DT_INST_DMAS_CELL_BY_NAME(n, tx, channel),                                   \
+	.rx_channel = DT_INST_DMAS_CELL_BY_NAME(n, rx, channel),
+
+#ifdef CONFIG_SPI_WCH_DMA
+#define SPI_WCH_USE_DMA(n) DT_INST_DMAS_HAS_NAME(n, tx)
+#else
+#define SPI_WCH_USE_DMA(n) 0
+#endif
+
 #define SPI_WCH_DEVICE_INIT(n)                                                                     \
 	PINCTRL_DT_INST_DEFINE(n);                                                                 \
 	static const struct spi_wch_config spi_wch_config_##n = {                                  \
 		.regs = (SPI_TypeDef *)DT_INST_REG_ADDR(n),                                        \
 		.clk_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                                  \
 		.pin_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                      \
-		.clock_id = DT_INST_CLOCKS_CELL(n, id)};                                           \
+		.clock_id = DT_INST_CLOCKS_CELL(n, id),                                            \
+		COND_CODE_1(SPI_WCH_USE_DMA(n), (SPI_WCH_DMA_INIT(n)), ()) };                        \
 	static struct spi_wch_data spi_wch_dev_data_##n = {                                        \
 		SPI_CONTEXT_INIT_LOCK(spi_wch_dev_data_##n, ctx),                                  \
 		SPI_CONTEXT_INIT_SYNC(spi_wch_dev_data_##n, ctx),                                  \
 		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(n), ctx)};                             \
+                                                                                                   \
 	SPI_DEVICE_DT_INST_DEFINE(n, spi_wch_init, NULL, &spi_wch_dev_data_##n,                    \
 				  &spi_wch_config_##n, POST_KERNEL, CONFIG_SPI_INIT_PRIORITY,      \
 				  &spi_wch_driver_api);
