@@ -498,7 +498,7 @@ struct modbus_serial_param {
  */
 struct modbus_server_param {
 	/** Pointer to the User Callback structure */
-	struct modbus_user_callbacks *user_cb;
+	const struct modbus_user_callbacks *user_cb;
 	/** Modbus unit ID of the server */
 	uint8_t unit_id;
 };

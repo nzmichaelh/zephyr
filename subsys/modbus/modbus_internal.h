@@ -107,7 +107,7 @@ struct modbus_context {
 	/* Amount of time client is willing to wait for response from server */
 	uint32_t rxwait_to;
 	/* Pointer to user server callbacks */
-	struct modbus_user_callbacks *mbs_user_cb;
+	const struct modbus_user_callbacks *mbs_user_cb;
 	/* Interface state */
 	atomic_t state;
 
@@ -136,7 +136,6 @@ struct modbus_context {
 	sys_slist_t user_defined_cbs;
 	/* Unit ID */
 	uint8_t unit_id;
-
 };
 
 /**
