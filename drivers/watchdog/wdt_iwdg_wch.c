@@ -47,7 +47,8 @@ static int iwdg_wch_install_timeout(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	for (; reload > IWDG_RL && prescaler < IWDG_PR;) {
+	// Note that prescaler 6 and 7 both give a /256 prescaler.
+	for (; reload > IWDG_RL && prescaler < IWDG_PR - 1;) {
 		prescaler++;
 		reload /= 2;
 	}

@@ -64,6 +64,7 @@ static int gpio_ch32v00x_configure(const struct device *dev, gpio_pin_t pin, gpi
 		cnf_mode = GPIO_CFGLR_IN_FLOAT;
 	} else if ((flags & GPIO_OUTPUT) != 0) {
 		if ((flags & (GPIO_PULL_UP | GPIO_PULL_DOWN)) != 0) {
+			printk("%d\n", __LINE__);
 			/* Chip does not support pulls */
 			return -ENOTSUP;
 		}
@@ -76,8 +77,10 @@ static int gpio_ch32v00x_configure(const struct device *dev, gpio_pin_t pin, gpi
 			cnf_mode = GPIO_CH32V00X_OUT_OD;
 			break;
 		case GPIO_OPEN_SOURCE:
+			printk("%d\n", __LINE__);
 			return -ENOTSUP;
 		default:
+			printk("%d\n", __LINE__);
 			return -EINVAL;
 		}
 		gpio_ch32v00x_set_output_speed(regs, pin);
@@ -102,9 +105,11 @@ static int gpio_ch32v00x_configure(const struct device *dev, gpio_pin_t pin, gpi
 			bshr = GPIO_BSHR_BR0 << pin;
 			break;
 		default:
+			printk("%d\n", __LINE__);
 			return -EINVAL;
 		}
 	} else {
+		printk("%d\n", __LINE__);
 		return -EINVAL;
 	}
 
