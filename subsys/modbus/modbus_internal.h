@@ -71,8 +71,9 @@
 struct modbus_serial_config {
 	/* UART device */
 	const struct device *dev;
-	/* RTU timeout (maximum inter-frame delay) */
-	uint32_t rtu_timeout;
+	/* RTU timeout (maximum inter-frame delay) in microseconds */
+	uint32_t rtu_timeout_us;
+	k_timeout_t rtu_timeout;
 	/* Pointer to current position in buffer */
 	uint8_t *uart_buf_ptr;
 	/* Pointer to driver enable (DE) pin config */
