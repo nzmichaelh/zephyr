@@ -12,6 +12,7 @@
 #include <zephyr/irq.h>
 
 #include <hal_ch32fun.h>
+#include <sys/errno.h>
 
 #define DT_DRV_COMPAT wch_gpio
 
@@ -34,32 +35,55 @@ static int gpio_ch32v00x_configure(const struct device *dev, gpio_pin_t pin, gpi
 	uint32_t cnf_mode;
 	uint32_t bshr = 0;
 
-	if ((flags & GPIO_OUTPUT) != 0) {
-		cnf_mode = 0x01;
+	if (flags == GPIO_DISCONNECTED) {
+		cnf_mode = GPIO_CFGLR_IN_FLOAT;
+	} else if ((flags & GPIO_OUTPUT) != 0) {
+		if ((flags & (GPIO_PULL_UP | GPIO_PULL_DOWN)) != 0) {
+			return -ENOTSUP;
+		}
+		switch (flags & (GPIO_SINGLE_ENDED | GPIO_LINE_OPEN_DRAIN)) {
+		case 0:
+			cnf_mode = GPIO_CFGLR_OUT_PP;
+			break;
+		case GPIO_OPEN_DRAIN:
+			cnf_mode = GPIO_CFGLR_OUT_OD;
+			break;
+		case GPIO_OPEN_SOURCE:
+			return -ENOTSUP;
+		default:
+			return -EINVAL;
+		}
 		if ((flags & GPIO_OUTPUT_INIT_HIGH) != 0) {
 			bshr = 1 << pin;
 		} else if ((flags & GPIO_OUTPUT_INIT_LOW) != 0) {
 			bshr = 1 << (16 + pin);
 		}
 	} else if ((flags & GPIO_INPUT) != 0) {
-		if ((flags & GPIO_PULL_UP) != 0) {
-			cnf_mode = GPIO_CFGLR_IN_PUPD;
-			bshr = 1 << pin;
-		} else if ((flags & GPIO_PULL_DOWN) != 0) {
-			cnf_mode = GPIO_CFGLR_IN_PUPD;
-			bshr = 1 << (16 + pin);
-		} else {
+		switch (flags & (GPIO_PULL_UP | GPIO_PULL_DOWN)) {
+		case 0:
 			cnf_mode = GPIO_CFGLR_IN_FLOAT;
+			break;
+		case GPIO_PULL_UP:
+			cnf_mode = GPIO_CFGLR_IN_PUPD;
+			bshr = GPIO_BSHR_BS0 << pin;
+			break;
+		case GPIO_PULL_DOWN:
+			cnf_mode = GPIO_CFGLR_IN_PUPD;
+			bshr = GPIO_BSHR_BR0 << pin;
+			break;
+		default:
+			return -EINVAL;
 		}
 	} else {
-		cnf_mode = 0x00;
+		return -EINVAL;
 	}
 
 	if (pin < 8) {
-		regs->CFGLR = (regs->CFGLR & ~(0x0F << (4 * pin))) | (cnf_mode << (4 * pin));
+		regs->CFGLR =
+			(regs->CFGLR & ~(GPIO_CFGLR_MASK << (4 * pin))) | (cnf_mode << (4 * pin));
 	} else {
-		regs->CFGHR =
-			(regs->CFGHR & ~(0x0F << ((pin - 8) * 4))) | (cnf_mode << ((pin - 8) * 4));
+		regs->CFGHR = (regs->CFGHR & ~(GPIO_CFGLR_MASK << ((pin - 8) * 4))) |
+			      (cnf_mode << ((pin - 8) * 4));
 	}
 	regs->BSHR = bshr;
 
