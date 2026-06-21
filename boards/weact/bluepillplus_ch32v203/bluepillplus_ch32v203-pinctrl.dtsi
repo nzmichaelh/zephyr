@@ -19,4 +19,12 @@
 			bias-pull-up;
 		};
 	};
+
+	blue_pwm_led_pinctrl: blue_pwm_led_pinctrl {
+		group1 {
+			pinmux = <TIM9_CH3N_PB2_1>;
+			output-high;
+			drive-push-pull;
+		};
+	};
 };

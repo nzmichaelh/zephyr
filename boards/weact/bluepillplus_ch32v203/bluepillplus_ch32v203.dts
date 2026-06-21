@@ -30,6 +30,16 @@
 		};
 	};
 
+	pwmleds: pwmleds {
+		compatible = "pwm-leds";
+		status = "disabled";
+
+		blue_pwm_led: blue_pwm_led {
+			pwms = <&pwm9 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+			label = "Blue LED";
+		};
+	};
+
 	buttons {
 		compatible = "gpio-keys";
 
