@@ -8,3 +8,6 @@ zephyr_sources(
 )
 
 zephyr_include_directories(.)
+
+zephyr_linker_sources(RAM_SECTIONS vec.ld)
+

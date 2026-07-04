@@ -20,12 +20,14 @@ SECTION_FUNC(vectors, ivt)
 	.option norvc
 	lui     a0, %hi(__start)
 	jr      %lo(__start)(a0)
-	.rept   CONFIG_VECTOR_TABLE_SIZE
-	.word	_isr_wrapper
-	.endr
 
 SECTION_FUNC(vectors, __start)
-	la      a0, ivt
-	ori     a0, a0, 3
+	la	a0, _vec_trampoline
+	la      a1, _isr_wrapper
+	sw	a1, (a0)
+	or	a0, a0, 2
 	csrw	mtvec, a0
 	tail	__initialize
+
+SECTION_VAR(vec, _vec_trampoline)
+	.word 0
