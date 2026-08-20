@@ -311,6 +311,9 @@ static int clock_control_wch_rcc_init(const struct device *dev)
 		}
 	}
 
+	RCC->CFGR0 &= ~RCC_ADCPRE;
+	RCC->CFGR0 |= RCC_ADCPRE_DIV8;
+
 	if (IS_ENABLED(WCH_RCC_SRC_IS_HSI)) {
 		RCC->CFGR0 = (RCC->CFGR0 & ~RCC_SW) | RCC_SW_HSI;
 	} else if (IS_ENABLED(WCH_RCC_SRC_IS_HSE)) {
