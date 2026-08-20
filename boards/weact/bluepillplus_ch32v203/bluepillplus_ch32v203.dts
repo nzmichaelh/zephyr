@@ -81,3 +81,7 @@
 	pinctrl-0 = <&usart3_default>;
 	pinctrl-names = "default";
 };
+
+&adc1 {
+	status = "okay";
+};

@@ -1,0 +1,70 @@
+/*
+ * Copyright (c) 2025 Michael Hope <michaelh@juju.nz>
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/adc/adc.h>
+
+/ {
+	zephyr,user {
+		io-channels = <&adc1 0>, <&adc1 16>, <&adc1 17>;
+	};
+};
+
+&pinctrl {
+	adc1_default: adc1_default {
+		group1 {
+			pinmux = <ADC1_A0_PA0_0>;
+		};
+	};
+};
+
+&adc1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	pinctrl-0 = <&adc1_default>;
+	pinctrl-names = "default";
+
+	/* Channel 0 is floating */
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	/*
+	 * Channel 16 is connected to the internal temperature sensor. This is
+	 * 1.4 V at 25 Celcius, or approximately 0x6C9.
+	 */
+	channel@10 {
+		reg = <0x10>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	/*
+	 * Channel 17 is connected to Vrefint. This is 1.2 V, or approximately
+	 * 0x5D1.
+	 */
+	channel@11 {
+		reg = <0x11>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+&pll {
+	mul = <12>;
+};
+
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(96)>;
+};
