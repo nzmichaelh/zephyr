@@ -286,5 +286,17 @@
 				status = "disabled";
 			};
 		};
+
+		adc1: adc@40012400 {
+			compatible = "wch,adc";
+			reg = <0x40012400 16>;
+			clocks = <&rcc CH32V20X_V30X_CLOCK_ADC1>;
+			interrupt-parent = <&pfic>;
+			interrupts = <34>;
+			channels = <18>;
+			resolution = <12>;
+			#io-channel-cells = <1>;
+			status = "disabled";
+		};
 	};
 };
