@@ -146,6 +146,7 @@ ceva	Ceva, Inc.
 cfsensor	CFSensor Co., Ltd
 checkpoint	Check Point Software Technologies Ltd.
 chefree	Chefree Technology Corp.
+cheyao	Icy Electronics
 chipidea	Chipidea, Inc
 chipone	ChipOne
 chipsemi	Chipsemi Corp.
