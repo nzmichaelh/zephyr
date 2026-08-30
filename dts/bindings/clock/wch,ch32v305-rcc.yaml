@@ -1,0 +1,84 @@
+# Copyright (c) 2026 Michael Hope
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  CH32V305/307/317 RCC (Reset and Clock controller).
+
+  See `wch,rcc.yaml` for more
+
+compatible: "wch,ch32v208-rcc"
+
+include:
+  - name: wch,rcc.yaml
+
+hsi-prescaler:
+  type: int
+  default: 1
+  description: HSI prescaler before feeding PLL1
+  enum:
+    - 1
+    - 2
+
+prediv1:
+  type: int
+  default: 1
+  description: HSE prescaler before feeding PLL1
+  enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+    - 16
+
+hb-prescaler:
+  type: int
+  default: 1
+  enum:
+    - 1
+    - 2
+    - 4
+    - 8
+    - 16
+    - 64
+    - 256
+    - 512
+
+pb1-prescaler:
+  type: int
+  default: 1
+  enum:
+    - 1
+    - 2
+    - 4
+    - 8
+    - 16
+
+pb2-prescaler:
+  type: int
+  default: 1
+  enum:
+    - 1
+    - 2
+    - 4
+    - 8
+    - 16
+
+adc-prescaler:
+  type: int
+  default: 2
+  enum:
+    - 2
+    - 4
+    - 6
+    - 8
