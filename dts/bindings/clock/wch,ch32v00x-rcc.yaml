@@ -1,0 +1,54 @@
+# Copyright (c) 2026 Michael Hope
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  CH32V003/00x RCC (Reset and Clock controller).
+
+  See `wch,rcc.yaml` for more
+
+compatible: "wch,ch32v00x-rcc"
+
+include:
+  - name: wch,rcc.yaml
+
+hb-prescaler:
+  type: int
+  default: 1
+  enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 16
+    - 32
+    - 64
+    - 128
+    - 256
+
+hsi-pre:
+  type: int
+  default: 1
+  enum:
+    - 1
+    - 2
+
+adc-prescaler:
+  type: int
+  default: 2
+  enum:
+    - 2
+    - 4
+    - 6
+    - 8
+    - 12
+    - 16
+    - 24
+    - 32
+    - 48
+    - 64
+    - 96
+    - 128

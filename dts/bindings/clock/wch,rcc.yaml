@@ -1,7 +1,13 @@
 # Copyright (c) 2024 Michael Hope
 # SPDX-License-Identifier: Apache-2.0
 
-description: WCH CH32V00x Reset and Clock Control (RCC)
+description: |
+  WCH CH32 Reset and Clock Control (RCC)
+
+  This node implements the system clock source selection and controls clocks
+  for the High Performance Bus (HB) and peripheral busses.
+
+  `wch,rcc` contains all common properties. Each series inherits from this.
 
 compatible: "wch,rcc"
 
