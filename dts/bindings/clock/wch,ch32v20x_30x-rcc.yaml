@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Michael Hope
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  WCH CH32V20x/CH32V30x Reset and Clock Control (RCC).
+
+  This binding extends the common WCH RCC controller with the bus and ADC
+  clock prescalers available on the CH32V20x and CH32V30x families. See
+  wch,rcc.yaml for the common clock controller properties.
+
+compatible: "wch,ch32v20x_30x-rcc"
+
+include:
+  - name: wch,rcc.yaml
+
+properties:
+  hb-prescaler:
+    type: int
+    default: 1
+    description: |
+      HB bus clock (HCLK) prescaler. HCLK is the system clock (SYSCLK)
+      divided by this value. The default matches the RCC reset value, which
+      leaves HCLK undivided.
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+      - 64
+      - 128
+      - 256
+      - 512
+
+  pb1-prescaler:
+    type: int
+    default: 1
+    description: |
+      PB1 bus clock (PCLK1) prescaler. PCLK1 is HCLK divided by this value.
+      The default matches the RCC reset value, which leaves PCLK1 undivided.
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+
+  pb2-prescaler:
+    type: int
+    default: 1
+    description: |
+      PB2 bus clock (PCLK2) prescaler. PCLK2 is HCLK divided by this value.
+      The default matches the RCC reset value, which leaves PCLK2 undivided.
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+
+  adc-prescaler:
+    type: int
+    default: 2
+    description: |
+      ADC clock prescaler. The ADC clock is PCLK2 divided by this value.
+      The default matches the RCC reset value, which divides PCLK2 by 2.
+    enum:
+      - 2
+      - 4
+      - 6
+      - 8
