@@ -96,46 +96,46 @@ static int clock_control_wch_rcc_on(const struct device *dev, clock_control_subs
 	return 0;
 }
 
-static int clock_control_wch_rcc_get_rate(const struct device *dev, clock_control_subsys_t sys,
-					  uint32_t *rate)
+static uint32_t clock_control_wch_rcc_get_hclk(const struct device *dev)
 {
 	const struct clock_control_wch_rcc_config *config = dev->config;
 	RCC_TypeDef *regs = config->regs;
 	uint32_t cfgr0 = regs->CFGR0;
 	uint32_t sysclk = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC;
-	uint32_t ahbclk = sysclk;
 
-#if WCH_RCC_SRC_IS_H41X_PLL
+#if defined(RCC_FPRE)
+	/* The H417 always use HPRE=/1 */
 	switch (cfgr0 & RCC_FPRE) {
 	case RCC_FPRE_DIV4:
-		ahbclk /= 4;
+		return sysclk / 4;
 		break;
 	case RCC_FPRE_DIV2:
-		ahbclk /= 2;
+		return sysclk / 2;
 		break;
 	case RCC_FPRE_DIV1:
 	default:
-		break;
+		return sysclk / 1;
 	}
-
-	*rate = ahbclk;
-	return 0;
-#endif
-
+#else
 	if ((cfgr0 & RCC_HPRE_3) != 0) {
 		/* The range 0b1000 divides by a power of 2, where 0b1000 is /2, 0b1001 is /4, etc.
 		 */
-		ahbclk /= 2 << ((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) >> 4);
+		return sysclk / (2 << ((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) >> 4));
 	} else {
 		/* The range 0b0nnn divides by n + 1, where 0b0000 is /1, 0b001 is /2, etc. */
-		ahbclk /= ((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) >> 4) + 1;
+		return sysclk / (((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) >> 4) + 1);
 	}
+#endif
+}
 
+static int clock_control_wch_rcc_get_rate(const struct device *dev, clock_control_subsys_t sys,
+					  uint32_t *rate)
+{
 	/* The datasheet says that AHB == APB1 == APB2, but the registers imply that APB1 and APB2
 	 * can be divided from the AHB clock. Assume that the clock tree diagram is correct and
 	 * always return AHB.
 	 */
-	*rate = ahbclk;
+	*rate = clock_control_wch_rcc_get_hclk(dev);
 	return 0;
 }
 
