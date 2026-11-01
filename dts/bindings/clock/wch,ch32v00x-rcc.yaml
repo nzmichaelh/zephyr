@@ -1,0 +1,57 @@
+# Copyright (c) 2026 Michael Hope
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  WCH CH32V00x Reset and Clock Control (RCC).
+
+  This binding extends the common WCH RCC controller with the clock tree
+  configuration specific to the CH32003 and the CH32V00x family. See
+  wch,rcc.yaml for the common clock controller properties.
+
+compatible: "wch,ch32v00x-rcc"
+
+include:
+  - name: wch,rcc.yaml
+
+properties:
+  hb-prescaler:
+    type: int
+    default: 1
+    description: |
+      HB bus clock (HCLK) prescaler. HCLK is the system clock (SYSCLK)
+      divided by this value. The default matches the HCLK configuration
+      applied by the clock controller driver.
+    enum:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 16
+      - 32
+      - 64
+      - 128
+      - 256
+
+  adc-prescaler:
+    type: int
+    default: 2
+    description: |
+      ADC clock prescaler. The ADC clock is HCLK divided by this value.
+      The default matches the RCC reset value, which divides HCLK by 2.
+    enum:
+      - 2
+      - 4
+      - 6
+      - 8
+      - 12
+      - 16
+      - 24
+      - 32
+      - 48
+      - 64
+      - 96
+      - 128
