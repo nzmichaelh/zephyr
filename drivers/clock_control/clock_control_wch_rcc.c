@@ -39,8 +39,18 @@
 
 #define WCH_RCC_CLOCK_ID_OFFSET(id) (((id) >> 5) & 0xFF)
 #define WCH_RCC_CLOCK_ID_BIT(id)    ((id) & 0x1F)
+/* See also CH32V00X_PB1_PCENR_OFFSET, CH32V20X_V30X_APB1_PCENR_OFFSET */
+#define WCH_RCC_CLOCK_ID_HB         0
+#define WCH_RCC_CLOCK_ID_PB2        1
+#define WCH_RCC_CLOCK_ID_PB1        2
+
 #define WCH_RCC_PLLMUL_VAL(mul)     (((mul) << 0x12) & RCC_PLLMULL)
-#define WCH_RCC_SYSCLK              DT_PROP(DT_NODELABEL(cpu0), clock_frequency)
+#define WCH_RCC_HB_PRESCALER        DT_INST_PROP_OR(0, hb_prescaler, 1)
+#define WCH_RCC_PB1_PRESCALER       DT_INST_PROP_OR(0, pb1_prescaler, 1)
+#define WCH_RCC_PB2_PRESCALER       DT_INST_PROP_OR(0, pb2_prescaler, 1)
+#define WCH_RCC_ADC_PRESCALER       DT_INST_PROP_OR(0, adc_prescaler, 2)
+#define WCH_RCC_F_PRESCALER         DT_INST_PROP_OR(0, f_prescaler, 1)
+#define WCH_RCC_SYSCLK (DT_PROP(DT_NODELABEL(cpu0), clock_frequency) * WCH_RCC_HB_PRESCALER)
 
 #if WCH_RCC_SRC_IS_H41X_PLL
 /*
@@ -96,48 +106,144 @@ static int clock_control_wch_rcc_on(const struct device *dev, clock_control_subs
 	return 0;
 }
 
-static uint32_t clock_control_wch_rcc_get_hclk(const struct device *dev)
+static int clock_control_wch_rcc_get_rate(const struct device *dev, clock_control_subsys_t sys,
+					  uint32_t *rate)
 {
 	const struct clock_control_wch_rcc_config *config = dev->config;
 	RCC_TypeDef *regs = config->regs;
 	uint32_t cfgr0 = regs->CFGR0;
-	uint32_t sysclk = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC;
+	uint32_t hclk = WCH_RCC_SYSCLK;
 
 #if defined(RCC_FPRE)
 	/* The H417 always use HPRE=/1 */
 	switch (cfgr0 & RCC_FPRE) {
 	case RCC_FPRE_DIV4:
-		return sysclk / 4;
+		hclk /= 4;
 		break;
 	case RCC_FPRE_DIV2:
-		return sysclk / 2;
+		hclk /= 2;
 		break;
 	case RCC_FPRE_DIV1:
 	default:
-		return sysclk / 1;
+		break;
 	}
-#else
+#endif
+
 	if ((cfgr0 & RCC_HPRE_3) != 0) {
 		/* The range 0b1000 divides by a power of 2, where 0b1000 is /2, 0b1001 is /4, etc.
 		 */
-		return sysclk / (2 << ((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) >> 4));
+		hclk /= 2 << ((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) / RCC_HPRE_0);
 	} else {
+#if defined(RCC_HPRE_DIV3)
 		/* The range 0b0nnn divides by n + 1, where 0b0000 is /1, 0b001 is /2, etc. */
-		return sysclk / (((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) >> 4) + 1);
+		hclk /= ((cfgr0 & (RCC_HPRE_0 | RCC_HPRE_1 | RCC_HPRE_2)) / RCC_HPRE_0) + 1;
+#else
+		/* 0b0xx is /1 */
+#endif
+	}
+
+	switch (WCH_RCC_CLOCK_ID_OFFSET((uint32_t)sys)) {
+	case WCH_RCC_CLOCK_ID_PB1:
+#if defined(RCC_PPRE1)
+		if ((cfgr0 & RCC_PPRE1) < RCC_PPRE1_DIV2) {
+			/* 0b0xx is /1 */
+			*rate = hclk;
+			return 0;
+		} else {
+			/* 0b100 is /2, 0b101 is /4... */
+			*rate = hclk >> ((cfgr0 & (RCC_PPRE1_0 | RCC_PPRE1_1)) / RCC_PPRE1_0 + 1);
+			return 0;
+		}
+#else
+		*rate = hclk;
+		return 0;
+#endif
+	case WCH_RCC_CLOCK_ID_PB2:
+#if defined(RCC_PPRE2)
+		if ((cfgr0 & RCC_PPRE2) < RCC_PPRE2_DIV2) {
+			/* 0xx is /1 */
+			*rate = hclk;
+			return 0;
+		} else {
+			/* 0b100 is /2, 0b101 is /4... */
+			*rate = hclk >> ((cfgr0 & (RCC_PPRE2_0 | RCC_PPRE2_1)) / RCC_PPRE2_0 + 1);
+			return 0;
+		}
+#else
+		*rate = hclk;
+		return 0;
+#endif
+	case WCH_RCC_CLOCK_ID_HB:
+		*rate = hclk;
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
+/* Returns the register value for the given HB prescale factor */
+static uint32_t clock_control_wch_rcc_hpre_cfg(uint32_t prescaler)
+{
+#if defined(RCC_HPRE_DIV3)
+	/* CH32V00X */
+	if (prescaler <= 7) {
+		/* 1, 2, 3...7 */
+		return (prescaler - 1) * RCC_HPRE_0;
+	} else {
+		/* 8, 16, 32...256 */
+		return RCC_HPRE_3 | (LOG2(prescaler) - 1) * RCC_HPRE_0;
+	}
+#else
+	/* CH32V20x/30x */
+	if (prescaler == 1) {
+		return RCC_HPRE_DIV1;
+	} else if (prescaler <= 16) {
+		/* 2, 4...16 */
+		return RCC_HPRE3 | (LOG2(prescaler) - 1) * RCC_HPRE_0;
+	} else {
+		/* 64, 128...512. Note that there is no 32 */
+		return RCC_HPRE3 | (LOG2(prescaler) - 2) * RCC_HPRE_0;
 	}
 #endif
 }
 
-static int clock_control_wch_rcc_get_rate(const struct device *dev, clock_control_subsys_t sys,
-					  uint32_t *rate)
+#if defined(RCC_PPRE1)
+
+/* Returns the register value for the given PB1 prescale factor */
+static uint32_t clock_control_wch_rcc_ppre1_cfg(uint32_t prescaler)
 {
-	/* The datasheet says that AHB == APB1 == APB2, but the registers imply that APB1 and APB2
-	 * can be divided from the AHB clock. Assume that the clock tree diagram is correct and
-	 * always return AHB.
-	 */
-	*rate = clock_control_wch_rcc_get_hclk(dev);
-	return 0;
+	if (prescaler <= 1) {
+		return RCC_PPRE1_DIV1;
+	} else {
+		return RCC_PPRE1_2 | (LOG2(prescaler) - 1) * RCC_PPRE1_0;
+	}
 }
+
+/* Returns the register value for the given PB2 prescale factor */
+static uint32_t clock_control_wch_rcc_ppre2_cfg(uint32_t prescaler)
+{
+	if (prescaler <= 1) {
+#if defined(RCC_PPRE2_DIV0)
+		/* The H41x HAL calls this 'DIV0' */
+		return RCC_PPRE2_DIV0;
+#else
+		return RCC_PPRE2_DIV1;
+#endif
+	} else {
+		return RCC_PPRE2_2 | (LOG2(prescaler) - 1) * RCC_PPRE2_0;
+	}
+}
+
+#endif
+
+#if defined(RCC_FPRE)
+
+static uint32_t clock_control_wch_rcc_fpre_cfg(uint32_t prescaler)
+{
+	return LOG2(prescaler) * RCC_FPRE_0;
+}
+
+#endif
 
 static void clock_control_wch_rcc_setup_flash(void)
 {
@@ -220,7 +326,11 @@ static void clock_control_wch_h41x_init_480m(void)
 	RCC->PLLCFGR = (RCC->PLLCFGR & ~RCC_SYSPLL_SEL) | RCC_SYSPLL_USBHS;
 	(void)clock_control_wch_wait_ready(&RCC->PLLCFGR, RCC_SYSPLL_SEL, RCC_SYSPLL_USBHS);
 
-	RCC->CFGR0 = (RCC->CFGR0 & ~(RCC_HPRE | RCC_FPRE)) | RCC_HPRE_DIV1 | RCC_FPRE_DIV4;
+	/* Note that the H41x does not have PB1 */
+	RCC->CFGR0 = (RCC->CFGR0 & ~(RCC_HPRE | RCC_FPRE | RCC_PPRE2)) |
+		     clock_control_wch_rcc_hpre_cfg(WCH_RCC_HB_PRESCALER) |
+		     clock_control_wch_rcc_ppre2_cfg(WCH_RCC_PB2_PRESCALER) |
+		     clock_control_wch_rcc_fpre_cfg(WCH_RCC_F_PRESCALER);
 
 	flash_actlr = FLASH->ACTLR;
 	flash_actlr &= ~0x3U;
@@ -322,8 +432,14 @@ static int clock_control_wch_rcc_init(const struct device *dev)
 
 	/* Clear the interrupt flags. */
 	RCC->INTR = RCC_CSSC | RCC_PLLRDYC | RCC_HSERDYC | RCC_LSIRDYC;
-	/* HCLK = SYSCLK = APB1 */
-	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_HPRE) | RCC_HPRE_DIV1;
+	RCC->CFGR0 =
+		(RCC->CFGR0 & ~RCC_HPRE) | clock_control_wch_rcc_hpre_cfg(WCH_RCC_HB_PRESCALER);
+
+#if defined(RCC_PPRE1)
+	RCC->CFGR0 = (RCC->CFGR0 & ~(RCC_PPRE1 | RCC_PPRE2)) |
+		     clock_control_wch_rcc_ppre1_cfg(WCH_RCC_PB1_PRESCALER) |
+		     clock_control_wch_rcc_ppre2_cfg(WCH_RCC_PB2_PRESCALER);
+#endif
 
 	return 0;
 }
